@@ -30,24 +30,29 @@ export default function Home() {
     }
   }, [session]);
 
-  return (
-    <div style={{ textAlign: 'center', marginTop: '100px' }}>
-      <h1>Welcome to Briefly</h1>
-      <button
-        onClick={() => {
-          supabase.auth.signInWithOAuth({
-            provider: 'google',
-            options: {
-              redirectTo: typeof window !== 'undefined' ? window.location.origin : '',
-            },
-          });
-        }}
-      >
-        Sign in with Google
-      </button>
-    </div>
-  );
+  if (!session) {
+    return (
+      <div style={{ textAlign: 'center', marginTop: '100px' }}>
+        <h1>Welcome to Briefly</h1>
+        <button
+          onClick={() => {
+            supabase.auth.signInWithOAuth({
+              provider: 'google',
+              options: {
+                redirectTo: 'https://briefly-7ss1uw7x8-sakinas-projects-b154b890.vercel.app',
+              },
+            });
+          }}
+        >
+          Sign in with Google
+        </button>
+      </div>
+    );
+  }
+
+  return <p>Redirecting...</p>;
 }
+
 
 // --- pages/dashboard.tsx ---
 import { useSession } from '@supabase/auth-helpers-react';
