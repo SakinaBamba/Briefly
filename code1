@@ -35,7 +35,7 @@ export default function Home() {
             supabase.auth.signInWithOAuth({
               provider: 'google',
               options: {
-                redirectTo: 'briefly-9gt25kos9-sakinas-projects-b154b890.vercel.app/auth/callback',
+                redirectTo: 'https://briefly-sakinas-projects-b154b890.vercel.app/auth/callback',
               },
             });
           }}
