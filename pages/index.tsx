@@ -4,7 +4,7 @@ import { useEffect } from 'react';
 
 export default function Home() {
   const session = useSession();
-  const supabase = useSupabaseClient(); // ✅ this is how you get the client
+  const supabase = useSupabaseClient();
   const router = useRouter();
 
   useEffect(() => {
@@ -18,16 +18,22 @@ export default function Home() {
       <div style={{ textAlign: 'center', marginTop: '100px' }}>
         <h1>Welcome to Briefly</h1>
         <button
-          onClick={() => {
-            supabase.auth.signInWithOAuth({
-              provider: 'google',
-              options: {
-                redirectTo:
-                  typeof window !== 'undefined'
-                    ? `${window.location.origin}/auth/callback`
-                    : '',
-              },
-            });
+          onClick={async () => {
+            console.log('Sign in clicked ✅');
+            try {
+              const result = await supabase.auth.signInWithOAuth({
+                provider: 'google',
+                options: {
+                  redirectTo:
+                    typeof window !== 'undefined'
+                      ? `${window.location.origin}/auth/callback`
+                      : '',
+                },
+              });
+              console.log('OAuth result:', result);
+            } catch (error) {
+              console.error('OAuth sign-in error:', error);
+            }
           }}
         >
           Sign in with Google
