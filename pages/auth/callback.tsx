@@ -1,15 +1,22 @@
 import { createServerComponentClient } from '@supabase/auth-helpers-nextjs';
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
+import type { GetServerSidePropsContext } from 'next';
 
 export default function Callback() {
-  redirect('/dashboard'); // Redirect after callback
+  redirect('/dashboard'); // redirect after login
+  return null;
 }
 
-export async function getServerSideProps({ req, res }) {
-  const supabase = createServerComponentClient({ req, res, cookies });
+export async function getServerSideProps(ctx: GetServerSidePropsContext) {
+  const supabase = createServerComponentClient({
+    cookies,
+    headers: {
+      cookie: ctx.req.headers.cookie || '',
+    },
+  });
 
-  await supabase.auth.getUser(); // completes the session in Supabase
+  await supabase.auth.getUser(); // complete Supabase auth session
 
   return {
     props: {},
