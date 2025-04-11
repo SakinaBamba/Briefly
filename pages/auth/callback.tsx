@@ -1,10 +1,17 @@
-import { handleCallback } from '@supabase/auth-helpers-nextjs';
-
-export const getServerSideProps = async (ctx) => {
-  await handleCallback({ req: ctx.req, res: ctx.res });
-  return { props: {} };
-};
+import { createServerComponentClient } from '@supabase/auth-helpers-nextjs';
+import { cookies } from 'next/headers';
+import { redirect } from 'next/navigation';
 
 export default function Callback() {
-  return <p>Signing you in...</p>;
+  redirect('/dashboard'); // Redirect after callback
+}
+
+export async function getServerSideProps({ req, res }) {
+  const supabase = createServerComponentClient({ req, res, cookies });
+
+  await supabase.auth.getUser(); // completes the session in Supabase
+
+  return {
+    props: {},
+  };
 }
