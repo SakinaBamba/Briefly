@@ -1,12 +1,13 @@
 // pages/dashboard.tsx
 import { useSession, useSupabaseClient } from '@supabase/auth-helpers-react';
 import { useRouter } from 'next/router';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 
 export default function Dashboard() {
   const session = useSession();
   const supabase = useSupabaseClient();
   const router = useRouter();
+  const [summary, setSummary] = useState('');
 
   useEffect(() => {
     if (!session) {
@@ -19,13 +20,50 @@ export default function Dashboard() {
     router.push('/');
   };
 
+  const handleSummarize = async () => {
+    const user_id = session?.user?.id;
+
+    const res = await fetch('/api/summarize', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        transcript: "This is a demo transcript from the frontend!",
+        user_id
+      })
+    });
+
+    const data = await res.json();
+    if (data.summary) setSummary(data.summary);
+    else alert('Failed to summarize!');
+  };
+
   if (!session) return <p>Loading...</p>;
 
   return (
     <div style={{ textAlign: 'center', marginTop: '100px' }}>
       <h1>Welcome, {session.user.email}</h1>
       <p>This is your dashboard</p>
-      <button onClick={handleLogout} style={{ marginTop: '20px', padding: '10px 20px' }}>
+
+      <button
+        onClick={handleSummarize}
+        style={{ marginTop: '20px', padding: '10px 20px' }}
+      >
+        Summarize Meeting
+      </button>
+
+      {summary && (
+        <div style={{ marginTop: '40px' }}>
+          <h3>Meeting Summary:</h3>
+          <p>{summary}</p>
+        </div>
+      )}
+
+      <button
+        onClick={handleLogout}
+        style={{ marginTop: '20px', padding: '10px 20px' }}
+      >
         Logout
       </button>
     </div>
