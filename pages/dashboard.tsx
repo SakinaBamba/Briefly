@@ -3,6 +3,7 @@ import { useSession, useSupabaseClient } from '@supabase/auth-helpers-react';
 import { useRouter } from 'next/router';
 import { useEffect, useState } from 'react';
 
+
 export default function Dashboard() {
   const session = useSession();
   const supabase = useSupabaseClient();
