@@ -7,7 +7,9 @@ export default function Dashboard() {
   const session = useSession();
   const supabase = useSupabaseClient();
   const router = useRouter();
+
   const [summary, setSummary] = useState('');
+  const [proposalItems, setProposalItems] = useState<string[]>([]);
 
   useEffect(() => {
     if (!session) {
@@ -29,14 +31,18 @@ export default function Dashboard() {
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
-        transcript: "This is a demo transcript from the frontend!",
+        transcript: `Hi, thanks for joining the call. So we’re looking to upgrade the Wi-Fi in our warehouse. We need better coverage and more reliable APs. I think we’ll need about 6 access points total. Can you include licensing and installation in the quote?`,
         user_id
       })
     });
 
     const data = await res.json();
-    if (data.summary) setSummary(data.summary);
-    else alert('Failed to summarize!');
+    if (data.summary) {
+      setSummary(data.summary);
+      setProposalItems(data.proposal_items || []);
+    } else {
+      alert('Failed to summarize!');
+    }
   };
 
   if (!session) return <p>Loading...</p>;
@@ -57,15 +63,27 @@ export default function Dashboard() {
         <div style={{ marginTop: '40px' }}>
           <h3>Meeting Summary:</h3>
           <p>{summary}</p>
+
+          {proposalItems.length > 0 && (
+            <>
+              <h4 style={{ marginTop: '20px' }}>Proposal Items:</h4>
+              <ul style={{ listStyle: 'disc', textAlign: 'left', display: 'inline-block' }}>
+                {proposalItems.map((item, idx) => (
+                  <li key={idx}>{item.replace(/^-\s*/, '')}</li>
+                ))}
+              </ul>
+            </>
+          )}
         </div>
       )}
 
       <button
         onClick={handleLogout}
-        style={{ marginTop: '20px', padding: '10px 20px' }}
+        style={{ marginTop: '40px', padding: '10px 20px' }}
       >
         Logout
       </button>
     </div>
   );
 }
+
