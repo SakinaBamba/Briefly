@@ -15,5 +15,6 @@ export default async function handler(req, res) {
   });
 
   const data = await response.json();
+  console.log("Edge function response:", data);
   res.status(response.status).json(data);
 }
