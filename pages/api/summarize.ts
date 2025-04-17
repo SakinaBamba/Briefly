@@ -1,4 +1,5 @@
 // pages/api/summarize.ts
+
 import { createClient } from '@supabase/supabase-js';
 
 const supabase = createClient(
@@ -40,7 +41,7 @@ Proposal items:
 - Item 2
 - Item 3
 
-Do NOT include extra headings, section breaks, or markdown formatting.`
+Do NOT include extra section titles, markdown, or formatting. Just one summary and one bullet list.`
           },
           {
             role: 'user',
@@ -61,13 +62,16 @@ Do NOT include extra headings, section breaks, or markdown formatting.`
       return res.status(500).json({ error: 'Invalid response from OpenAI', details: data });
     }
 
-    const gptMessage = messageObj.content;
+    let gptMessage = messageObj.content;
 
-    // Smart splitting based on "Proposal items:"
-    const [summaryPart, itemsPart] = gptMessage.split(/Proposal items:/i);
-    const summary = summaryPart
-      ?.replace(/^Summary:/i, '')
-      .trim() || 'Summary unavailable.';
+    // Normalize headings like ### Meeting Summary and ### Proposal Items
+    gptMessage = gptMessage
+      .replace(/^###\s*Meeting Summary:\s*/i, '')
+      .replace(/^Summary:\s*/i, '')
+      .trim();
+
+    const [summaryPart, itemsPart] = gptMessage.split(/###?\s*Proposal Items:?\s*/i);
+    const summary = summaryPart?.trim() || 'Summary unavailable.';
 
     let proposal_items: string[] = [];
 
@@ -79,7 +83,7 @@ Do NOT include extra headings, section breaks, or markdown formatting.`
           .filter(line => line.trim().startsWith("-"))
           .map(item => item.trim());
       } else {
-        // Handle comma-separated or single-line
+        // Handle fallback comma-separated format
         proposal_items = itemsPart
           .split(",")
           .map(i => `- ${i.trim()}`)
@@ -117,4 +121,3 @@ Do NOT include extra headings, section breaks, or markdown formatting.`
     return res.status(500).json({ error: 'Request failed', details: err.message });
   }
 }
-
