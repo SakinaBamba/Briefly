@@ -29,7 +29,7 @@ export default async function handler(req, res) {
         messages: [
           {
             role: 'system',
-            content: 'You are a helpful assistant that summarizes meetings and extracts proposal items. Return the proposal items as bullet points, each starting with a dash.'
+            content: 'You are a helpful assistant that summarizes meetings and extracts proposal items. Return the summary as a paragraph. Return the proposal items as a bullet list, each on its own line starting with a dash. Do not include section headers like "### Meeting Summary'
           },
           {
             role: 'user',
