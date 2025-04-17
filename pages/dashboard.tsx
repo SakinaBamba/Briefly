@@ -1,6 +1,6 @@
 // pages/dashboard.tsx
-'use client'
 
+'use client'
 
 import { useSession, useSupabaseClient } from '@supabase/auth-helpers-react';
 import { useRouter } from 'next/router';
@@ -164,20 +164,20 @@ export default function Dashboard() {
 
             <div style={{ marginTop: 20 }}>
               <button
-                onClick={() =>
-                  setShowInputFor(prev => ({ ...prev, [meeting.id]: true })) &&
-                  setShowDropdownFor(prev => ({ ...prev, [meeting.id]: false }))
-                }
+                onClick={() => {
+                  setShowInputFor(prev => ({ ...prev, [meeting.id]: true }));
+                  setShowDropdownFor(prev => ({ ...prev, [meeting.id]: false }));
+                }}
                 style={{ marginRight: 10 }}
               >
                 Create New Client
               </button>
 
               <button
-                onClick={() =>
-                  setShowDropdownFor(prev => ({ ...prev, [meeting.id]: true })) &&
-                  setShowInputFor(prev => ({ ...prev, [meeting.id]: false }))
-                }
+                onClick={() => {
+                  setShowDropdownFor(prev => ({ ...prev, [meeting.id]: true }));
+                  setShowInputFor(prev => ({ ...prev, [meeting.id]: false }));
+                }}
               >
                 Assign to Existing Client
               </button>
