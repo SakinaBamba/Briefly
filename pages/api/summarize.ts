@@ -1,5 +1,4 @@
 // pages/api/summarize.ts
-
 import { createClient } from '@supabase/supabase-js';
 
 const supabase = createClient(
@@ -29,7 +28,10 @@ export default async function handler(req, res) {
         messages: [
           {
             role: 'system',
-            content: 'You are a helpful assistant that summarizes meetings and extracts proposal items. Return the summary as a paragraph. Return the proposal items as a bullet list, each on its own line starting with a dash. Do not include section headers like "### Meeting Summary'
+            content: `You are a helpful assistant that summarizes meetings and extracts proposal items. 
+Return the summary as a paragraph.
+Return the proposal items as a bullet list, each on a new line starting with a dash (-).
+Do NOT include section headers like "### Meeting Summary" or "### Proposal Items".`
           },
           {
             role: 'user',
@@ -49,9 +51,16 @@ export default async function handler(req, res) {
       return res.status(500).json({ error: 'Invalid response from OpenAI', details: data });
     }
 
-    const gptMessage = data.choices[0].message.content;
+    let gptMessage = data.choices[0].message.content;
 
-    // Extract summary and proposal items
+    // Clean GPT message in case it still sneaks in headings
+    gptMessage = gptMessage
+      .replace(/^###\s*Meeting Summary:*/i, '')
+      .replace(/^###\s*Proposal Items:*/i, '')
+      .replace(/###/g, '')
+      .trim();
+
+    // Split into summary and proposal items
     const [summaryPart, itemsPart] = gptMessage.split("Proposal items:");
     const summary = summaryPart?.trim() || 'Summary unavailable.';
 
@@ -63,7 +72,6 @@ export default async function handler(req, res) {
       if (bulletItems.length > 0) {
         proposal_items = bulletItems.map(item => item.trim());
       } else {
-        // fallback: try comma-separated
         proposal_items = itemsPart
           .split(",")
           .map(i => `- ${i.trim()}`)
