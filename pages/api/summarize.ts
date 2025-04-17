@@ -1,5 +1,4 @@
 // pages/api/summarize.ts
-
 import { createClient } from '@supabase/supabase-js';
 
 const supabase = createClient(
@@ -55,37 +54,37 @@ Do NOT include extra section titles, markdown, or formatting. Just one summary a
 
     const data = await response.json();
     const messageObj = data?.choices?.[0]?.message;
-    console.log("🤖 GPT full message object:", JSON.stringify(messageObj, null, 2));
+    const gptMessage = messageObj?.content;
 
-    if (!messageObj?.content) {
-      console.error("❌ Invalid OpenAI response:", data);
-      return res.status(500).json({ error: 'Invalid response from OpenAI', details: data });
+    if (!gptMessage) {
+      console.error("❌ Invalid GPT response");
+      return res.status(500).json({ error: 'Missing GPT content', details: data });
     }
 
-    let gptMessage = messageObj.content;
+    // Log full raw response for debugging
+    console.log("🧾 GPT RAW CONTENT:\n", gptMessage);
 
-    // Normalize headings like ### Meeting Summary and ### Proposal Items
-    gptMessage = gptMessage
-      .replace(/^###\s*Meeting Summary:\s*/i, '')
+    // Try to split the message using any form of "Proposal Items" (with or without ###)
+    const [rawSummary, rawItems] = gptMessage.split(/(?:###\s*)?Proposal Items:?\s*/i);
+
+    const summary = rawSummary
       .replace(/^Summary:\s*/i, '')
+      .replace(/^###\s*Meeting Summary:\s*/i, '')
       .trim();
-
-    const [summaryPart, itemsPart] = gptMessage.split(/###?\s*Proposal Items:?\s*/i);
-    const summary = summaryPart?.trim() || 'Summary unavailable.';
 
     let proposal_items: string[] = [];
 
-    if (itemsPart) {
-      if (itemsPart.includes("\n-")) {
-        // Handle bullet list
-        proposal_items = itemsPart
+    if (rawItems) {
+      if (rawItems.includes("\n-")) {
+        // Proper bullet list
+        proposal_items = rawItems
           .split("\n")
           .filter(line => line.trim().startsWith("-"))
           .map(item => item.trim());
       } else {
-        // Handle fallback comma-separated format
-        proposal_items = itemsPart
-          .split(",")
+        // Fallback: comma-separated or inline dashless
+        proposal_items = rawItems
+          .split(/[,•-]/)
           .map(i => `- ${i.trim()}`)
           .filter(i => i !== "-");
       }
