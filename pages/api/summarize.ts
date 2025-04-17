@@ -60,3 +60,8 @@ export default async function handler(req, res) {
     return res.status(500).json({ error: 'Request failed', details: err });
   }
 }
+
+console.log("Starting summarize API route");
+
+const { transcript, user_id } = req.body;
+console.log("Incoming body:", { transcript, user_id });
