@@ -1,4 +1,5 @@
 // pages/api/summarize.ts
+
 import { createClient } from '@supabase/supabase-js';
 
 const supabase = createClient(
@@ -21,14 +22,14 @@ export default async function handler(req, res) {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${process.env.OPENAI_API_KEY}` // Set this in Vercel
+        'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`
       },
       body: JSON.stringify({
         model: 'gpt-4-1106-preview',
         messages: [
           {
             role: 'system',
-            content: 'You are a helpful assistant that summarizes meetings and extracts proposal items.'
+            content: 'You are a helpful assistant that summarizes meetings and extracts proposal items. Return the proposal items as bullet points, each starting with a dash.'
           },
           {
             role: 'user',
@@ -50,16 +51,29 @@ export default async function handler(req, res) {
 
     const gptMessage = data.choices[0].message.content;
 
+    // Extract summary and proposal items
     const [summaryPart, itemsPart] = gptMessage.split("Proposal items:");
     const summary = summaryPart?.trim() || 'Summary unavailable.';
-    const proposal_items = itemsPart
-      ? itemsPart.split("\n").filter(line => line.trim().startsWith("-"))
-      : [];
+
+    let proposal_items: string[] = [];
+
+    if (itemsPart) {
+      const bulletItems = itemsPart.split("\n").filter(line => line.trim().startsWith("-"));
+
+      if (bulletItems.length > 0) {
+        proposal_items = bulletItems.map(item => item.trim());
+      } else {
+        // fallback: try comma-separated
+        proposal_items = itemsPart
+          .split(",")
+          .map(i => `- ${i.trim()}`)
+          .filter(i => i !== "-");
+      }
+    }
 
     console.log("✅ Parsed summary:", summary);
     console.log("✅ Parsed proposal items:", proposal_items);
 
-    // Save to Supabase
     const { error: insertError } = await supabase
       .from('meetings')
       .insert([
