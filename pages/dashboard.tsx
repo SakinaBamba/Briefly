@@ -1,6 +1,7 @@
 // pages/dashboard.tsx
 'use client'
 
+
 import { useSession, useSupabaseClient } from '@supabase/auth-helpers-react';
 import { useRouter } from 'next/router';
 import { useEffect, useState } from 'react';
