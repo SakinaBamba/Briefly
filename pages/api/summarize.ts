@@ -53,15 +53,12 @@ Do NOT include section headers like "### Meeting Summary" or "### Proposal Items
 
     let gptMessage = data.choices[0].message.content;
 
-    // Clean GPT message in case it still sneaks in headings
-    gptMessage = gptMessage
-      .replace(/^###\s*Meeting Summary:*/i, '')
-      .replace(/^###\s*Proposal Items:*/i, '')
-      .replace(/###/g, '')
-      .trim();
+    // Remove Markdown headers
+    gptMessage = gptMessage.replace(/^###\s*Meeting Summary:\s*/i, '');
+    gptMessage = gptMessage.replace(/^###\s*Proposal Items:\s*/i, '');
 
     // Split into summary and proposal items
-    const [summaryPart, itemsPart] = gptMessage.split("Proposal items:");
+    const [summaryPart, itemsPart] = gptMessage.split(/Proposal items:/i);
     const summary = summaryPart?.trim() || 'Summary unavailable.';
 
     let proposal_items: string[] = [];
@@ -109,3 +106,4 @@ Do NOT include section headers like "### Meeting Summary" or "### Proposal Items
     return res.status(500).json({ error: 'Request failed', details: err.message });
   }
 }
+
