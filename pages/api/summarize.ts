@@ -1,11 +1,20 @@
 // pages/api/summarize.ts
+import { createClient } from '@supabase/supabase-js';
+
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+);
 
 export default async function handler(req, res) {
+  console.log("▶️ Starting summarize API route");
+
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
   const { transcript, user_id } = req.body;
+  console.log("📝 Incoming body:", { transcript, user_id });
 
   try {
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
@@ -15,7 +24,7 @@ export default async function handler(req, res) {
         'Authorization': `Bearer ${process.env.OPENAI_API_KEY}` // Set this in Vercel
       },
       body: JSON.stringify({
-        model: 'gpt-4-1106-preview', // GPT-4.1 Mini's model ID
+        model: 'gpt-4-1106-preview',
         messages: [
           {
             role: 'system',
@@ -32,36 +41,49 @@ export default async function handler(req, res) {
     });
 
     const data = await response.json();
-
-    // Optional: log OpenAI response for debugging
-    console.log("OpenAI response:", data);
+    console.log("🤖 OpenAI response:", data);
 
     if (!data.choices || !data.choices[0]?.message?.content) {
+      console.error("❌ Invalid OpenAI response");
       return res.status(500).json({ error: 'Invalid response from OpenAI', details: data });
     }
 
     const gptMessage = data.choices[0].message.content;
 
-    // Extract summary and proposal items
     const [summaryPart, itemsPart] = gptMessage.split("Proposal items:");
     const summary = summaryPart?.trim() || 'Summary unavailable.';
     const proposal_items = itemsPart
       ? itemsPart.split("\n").filter(line => line.trim().startsWith("-"))
       : [];
 
-    // Return the summary and items to your frontend
+    console.log("✅ Parsed summary:", summary);
+    console.log("✅ Parsed proposal items:", proposal_items);
+
+    // Save to Supabase
+    const { error: insertError } = await supabase
+      .from('meetings')
+      .insert([
+        {
+          user_id,
+          transcript,
+          summary,
+          proposal_items,
+          title: 'Untitled Meeting'
+        }
+      ]);
+
+    if (insertError) {
+      console.error("❌ Supabase insert error:", insertError);
+      return res.status(500).json({ error: 'Failed to insert into Supabase', details: insertError });
+    }
+
     return res.status(200).json({
       summary,
       proposal_items
     });
 
   } catch (err) {
-    console.error("API error:", err);
-    return res.status(500).json({ error: 'Request failed', details: err });
+    console.error("🔥 API error:", err);
+    return res.status(500).json({ error: 'Request failed', details: err.message });
   }
 }
-
-console.log("Starting summarize API route");
-
-const { transcript, user_id } = req.body;
-console.log("Incoming body:", { transcript, user_id });
