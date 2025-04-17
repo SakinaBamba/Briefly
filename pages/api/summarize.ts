@@ -44,7 +44,8 @@ Do NOT include section headers like "### Meeting Summary" or "### Proposal Items
     });
 
     const data = await response.json();
-    console.log("🤖 OpenAI response:", data);
+    console.log("🤖 GPT message content:", data.choices?.[0]?.message?.content);
+
 
     if (!data.choices || !data.choices[0]?.message?.content) {
       console.error("❌ Invalid OpenAI response");
