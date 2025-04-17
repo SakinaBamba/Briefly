@@ -28,10 +28,19 @@ export default async function handler(req, res) {
         messages: [
           {
             role: 'system',
-            content: `You are a helpful assistant that summarizes meetings and extracts proposal items. 
-Return the summary as a paragraph.
-Return the proposal items as a bullet list, each on a new line starting with a dash (-).
-Do NOT include section headers like "### Meeting Summary" or "### Proposal Items".`
+            content: `You are a helpful assistant that summarizes meetings and extracts proposal items.
+Return the summary as a single paragraph with no heading.
+Return the proposal items as a bullet list, one per line, each starting with a dash (-) and a space.
+Use this exact format:
+
+Summary: [your summary here]
+
+Proposal items:
+- Item 1
+- Item 2
+- Item 3
+
+Do NOT include extra headings, section breaks, or markdown formatting.`
           },
           {
             role: 'user',
@@ -43,34 +52,34 @@ Do NOT include section headers like "### Meeting Summary" or "### Proposal Items
       })
     });
 
-    console.dir(data, { depth: null });
-    console.log("🤖 GPT raw message:", JSON.stringify(data.choices?.[0]?.message, null, 2));
+    const data = await response.json();
+    const messageObj = data?.choices?.[0]?.message;
+    console.log("🤖 GPT full message object:", JSON.stringify(messageObj, null, 2));
 
-
-
-    if (!data.choices || !data.choices[0]?.message?.content) {
-      console.error("❌ Invalid OpenAI response");
+    if (!messageObj?.content) {
+      console.error("❌ Invalid OpenAI response:", data);
       return res.status(500).json({ error: 'Invalid response from OpenAI', details: data });
     }
 
-    let gptMessage = data.choices[0].message.content;
+    const gptMessage = messageObj.content;
 
-    // Remove Markdown headers
-    gptMessage = gptMessage.replace(/^###\s*Meeting Summary:\s*/i, '');
-    gptMessage = gptMessage.replace(/^###\s*Proposal Items:\s*/i, '');
-
-    // Split into summary and proposal items
+    // Smart splitting based on "Proposal items:"
     const [summaryPart, itemsPart] = gptMessage.split(/Proposal items:/i);
-    const summary = summaryPart?.trim() || 'Summary unavailable.';
+    const summary = summaryPart
+      ?.replace(/^Summary:/i, '')
+      .trim() || 'Summary unavailable.';
 
     let proposal_items: string[] = [];
 
     if (itemsPart) {
-      const bulletItems = itemsPart.split("\n").filter(line => line.trim().startsWith("-"));
-
-      if (bulletItems.length > 0) {
-        proposal_items = bulletItems.map(item => item.trim());
+      if (itemsPart.includes("\n-")) {
+        // Handle bullet list
+        proposal_items = itemsPart
+          .split("\n")
+          .filter(line => line.trim().startsWith("-"))
+          .map(item => item.trim());
       } else {
+        // Handle comma-separated or single-line
         proposal_items = itemsPart
           .split(",")
           .map(i => `- ${i.trim()}`)
