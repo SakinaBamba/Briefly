@@ -1,8 +1,8 @@
 // pages/dashboard.tsx
+'use client';
 import { useSession, useSupabaseClient } from '@supabase/auth-helpers-react';
 import { useRouter } from 'next/router';
 import { useEffect, useState } from 'react';
-
 
 export default function Dashboard() {
   const session = useSession();
@@ -25,6 +25,8 @@ export default function Dashboard() {
 
   const handleSummarize = async () => {
     const user_id = session?.user?.id;
+
+    console.log("User ID:", user_id);
 
     const res = await fetch('/api/summarize', {
       method: 'POST',
@@ -50,25 +52,22 @@ export default function Dashboard() {
 
   return (
     <div style={{ textAlign: 'center', marginTop: '100px' }}>
-      <h1>Welcome, {session.user.email}</h1>
+      <h1><strong>Welcome, {session.user.email}</strong></h1>
       <p>This is your dashboard</p>
 
-      <button
-        onClick={handleSummarize}
-        style={{ marginTop: '20px', padding: '10px 20px' }}
-      >
+      <button onClick={handleSummarize} style={{ marginTop: '20px', padding: '10px 20px' }}>
         Summarize Meeting
       </button>
 
       {summary && (
         <div style={{ marginTop: '40px' }}>
-          <h3>Meeting Summary:</h3>
+          <h3><strong>Meeting Summary:</strong></h3>
           <p>{summary}</p>
 
           {proposalItems.length > 0 && (
             <>
               <h4 style={{ marginTop: '20px' }}>Proposal Items:</h4>
-              <ul style={{ listStyle: 'disc', textAlign: 'left', display: 'inline-block' }}>
+              <ul style={{ listStyle: 'disc', textAlign: 'left', display: 'inline-block', paddingLeft: '20px' }}>
                 {proposalItems.map((item, idx) => (
                   <li key={idx}>{item.replace(/^-\s*/, '')}</li>
                 ))}
@@ -78,13 +77,9 @@ export default function Dashboard() {
         </div>
       )}
 
-      <button
-        onClick={handleLogout}
-        style={{ marginTop: '40px', padding: '10px 20px' }}
-      >
+      <button onClick={handleLogout} style={{ marginTop: '40px', padding: '10px 20px' }}>
         Logout
       </button>
     </div>
   );
 }
-
