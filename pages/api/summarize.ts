@@ -44,7 +44,8 @@ Do NOT include section headers like "### Meeting Summary" or "### Proposal Items
     });
 
     const data = await response.json();
-    console.log("🤖 GPT message content:", data.choices?.[0]?.message?.content);
+    console.log("🤖 GPT raw message:", JSON.stringify(data.choices?.[0]?.message, null, 2));
+
 
 
     if (!data.choices || !data.choices[0]?.message?.content) {
