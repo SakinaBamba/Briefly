@@ -1,4 +1,5 @@
 // pages/api/summarize.ts
+
 import { createClient } from '@supabase/supabase-js';
 
 const supabase = createClient(
@@ -61,16 +62,16 @@ Do NOT include extra section titles, markdown, or formatting. Just one summary a
       return res.status(500).json({ error: 'Missing GPT content', details: data });
     }
 
-    // Log full raw response for debugging
+    // Log full raw content for debug
     console.log("🧾 GPT RAW CONTENT:\n", gptMessage);
 
-    // Try to split the message using any form of "Proposal Items" (with or without ###)
-    const [rawSummary, rawItems] = gptMessage.split(/(?:###\s*)?Proposal Items:?\s*/i);
+    // ✅ Final regex handles multiple headings: Proposal items, Proposal items discussed, with or without ###
+    const [rawSummary, rawItems] = gptMessage.split(/(?:###\s*)?Proposal items(?: discussed)?:/i);
 
     const summary = rawSummary
-      .replace(/^Summary:\s*/i, '')
+      ?.replace(/^Summary:\s*/i, '')
       .replace(/^###\s*Meeting Summary:\s*/i, '')
-      .trim();
+      .trim() || 'Summary unavailable.';
 
     let proposal_items: string[] = [];
 
@@ -82,7 +83,7 @@ Do NOT include extra section titles, markdown, or formatting. Just one summary a
           .filter(line => line.trim().startsWith("-"))
           .map(item => item.trim());
       } else {
-        // Fallback: comma-separated or inline dashless
+        // Fallback: comma-separated or inline text
         proposal_items = rawItems
           .split(/[,•-]/)
           .map(i => `- ${i.trim()}`)
