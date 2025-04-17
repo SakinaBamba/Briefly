@@ -14,8 +14,10 @@ export default function Dashboard() {
   const [proposalItems, setProposalItems] = useState<string[]>([]);
   const [unassignedMeetings, setUnassignedMeetings] = useState<any[]>([]);
   const [clients, setClients] = useState<any[]>([]);
-  const [newClientName, setNewClientName] = useState('');
+  const [newClientNames, setNewClientNames] = useState<{ [key: string]: string }>({});
   const [clientSelections, setClientSelections] = useState<{ [key: string]: string }>({});
+  const [showInputFor, setShowInputFor] = useState<{ [key: string]: boolean }>({});
+  const [showDropdownFor, setShowDropdownFor] = useState<{ [key: string]: boolean }>({});
 
   useEffect(() => {
     if (!session) router.push('/');
@@ -32,9 +34,7 @@ export default function Dashboard() {
       .eq('user_id', session?.user?.id)
       .is('client_id', null);
 
-    if (!error && data) {
-      setUnassignedMeetings(data);
-    }
+    if (!error && data) setUnassignedMeetings(data);
   };
 
   const fetchClients = async () => {
@@ -63,34 +63,19 @@ export default function Dashboard() {
     if (data.summary) {
       setSummary(data.summary);
       setProposalItems(data.proposal_items || []);
-      fetchUnassignedMeetings(); // refresh after insert
+      fetchUnassignedMeetings();
     } else {
       alert('Failed to summarize!');
     }
   };
 
-  const handleAssignClient = async (meetingId: string) => {
-    const selectedClientId = clientSelections[meetingId];
-    if (!selectedClientId) return alert('Please select or create a client first');
-
-    const { error } = await supabase
-      .from('meetings')
-      .update({ client_id: selectedClientId })
-      .eq('id', meetingId);
-
-    if (error) {
-      alert('Failed to assign client');
-    } else {
-      fetchUnassignedMeetings();
-    }
-  };
-
   const handleCreateClient = async (meetingId: string) => {
-    if (!newClientName.trim()) return;
+    const name = newClientNames[meetingId]?.trim();
+    if (!name) return;
 
     const { data, error } = await supabase
       .from('clients')
-      .insert([{ name: newClientName }])
+      .insert([{ name }])
       .select()
       .single();
 
@@ -101,7 +86,27 @@ export default function Dashboard() {
 
     setClients(prev => [...prev, data]);
     setClientSelections(prev => ({ ...prev, [meetingId]: data.id }));
-    setNewClientName('');
+    setShowInputFor(prev => ({ ...prev, [meetingId]: false }));
+    assignClientToMeeting(meetingId, data.id);
+  };
+
+  const assignClientToMeeting = async (meetingId: string, clientId: string) => {
+    const { error } = await supabase
+      .from('meetings')
+      .update({ client_id: clientId })
+      .eq('id', meetingId);
+
+    if (error) {
+      alert('Failed to assign client');
+    } else {
+      fetchUnassignedMeetings();
+    }
+  };
+
+  const handleAssignExistingClient = async (meetingId: string) => {
+    const clientId = clientSelections[meetingId];
+    if (!clientId) return alert('Please select a client first');
+    assignClientToMeeting(meetingId, clientId);
   };
 
   if (!session) return <p>Loading...</p>;
@@ -119,7 +124,6 @@ export default function Dashboard() {
         <div style={{ marginTop: '40px' }}>
           <h3>Latest Meeting Summary:</h3>
           <p>{summary}</p>
-
           {proposalItems.length > 0 && (
             <>
               <h4 style={{ marginTop: '20px' }}>Proposal Items:</h4>
@@ -137,46 +141,87 @@ export default function Dashboard() {
 
       <h2>🗂 Unassigned Meetings</h2>
 
-      {unassignedMeetings.map(meeting => (
-        <div key={meeting.id} style={{ border: '1px solid #ccc', borderRadius: 10, padding: 20, margin: 20, width: '80%', marginLeft: 'auto', marginRight: 'auto' }}>
-          <p><strong>Summary:</strong> {meeting.summary}</p>
-
-          {meeting.proposal_items?.length > 0 && (
-            <>
-              <p><strong>Proposal Items:</strong></p>
-              <ul>
-                {meeting.proposal_items.map((item, idx) => (
-                  <li key={idx}>{item.replace(/^-\s*/, '')}</li>
-                ))}
-              </ul>
-            </>
-          )}
-
-          <div style={{ marginTop: 20 }}>
-            <select
-              value={clientSelections[meeting.id] || ''}
-              onChange={e => setClientSelections(prev => ({ ...prev, [meeting.id]: e.target.value }))}
-              style={{ padding: '6px 10px', marginRight: 10 }}
-            >
-              <option value="">Select Existing Client</option>
-              {clients.map(client => (
-                <option key={client.id} value={client.id}>{client.name}</option>
-              ))}
-            </select>
-
-            <input
-              type="text"
-              placeholder="New client name"
-              value={newClientName}
-              onChange={e => setNewClientName(e.target.value)}
-              style={{ padding: '6px', marginRight: 10 }}
-            />
-
-            <button onClick={() => handleCreateClient(meeting.id)}>Create ➕</button>
-            <button onClick={() => handleAssignClient(meeting.id)} style={{ marginLeft: 10 }}>Assign Client</button>
-          </div>
+      {unassignedMeetings.length === 0 ? (
+        <div style={{ border: '2px dashed #ccc', padding: 40, borderRadius: 10, marginTop: 30 }}>
+          <p>You have no unassigned meetings.</p>
         </div>
-      ))}
+      ) : (
+        unassignedMeetings.map(meeting => (
+          <div key={meeting.id} style={{ border: '1px solid #ccc', borderRadius: 10, padding: 20, margin: 20, width: '80%', marginLeft: 'auto', marginRight: 'auto' }}>
+            <p><strong>Summary:</strong> {meeting.summary}</p>
+
+            {meeting.proposal_items?.length > 0 && (
+              <>
+                <p><strong>Proposal Items:</strong></p>
+                <ul>
+                  {meeting.proposal_items.map((item, idx) => (
+                    <li key={idx}>{item.replace(/^-\s*/, '')}</li>
+                  ))}
+                </ul>
+              </>
+            )}
+
+            <div style={{ marginTop: 20 }}>
+              <button
+                onClick={() =>
+                  setShowInputFor(prev => ({ ...prev, [meeting.id]: true })) &&
+                  setShowDropdownFor(prev => ({ ...prev, [meeting.id]: false }))
+                }
+                style={{ marginRight: 10 }}
+              >
+                Create New Client
+              </button>
+
+              <button
+                onClick={() =>
+                  setShowDropdownFor(prev => ({ ...prev, [meeting.id]: true })) &&
+                  setShowInputFor(prev => ({ ...prev, [meeting.id]: false }))
+                }
+              >
+                Assign to Existing Client
+              </button>
+
+              {showInputFor[meeting.id] && (
+                <div style={{ marginTop: 10 }}>
+                  <input
+                    type="text"
+                    placeholder="Client name"
+                    value={newClientNames[meeting.id] || ''}
+                    onChange={e =>
+                      setNewClientNames(prev => ({ ...prev, [meeting.id]: e.target.value }))
+                    }
+                    style={{ padding: '6px', marginRight: 10 }}
+                  />
+                  <button onClick={() => handleCreateClient(meeting.id)}>Create & Assign</button>
+                </div>
+              )}
+
+              {showDropdownFor[meeting.id] && (
+                <div style={{ marginTop: 10 }}>
+                  <input
+                    list={`clients-${meeting.id}`}
+                    placeholder="Search client..."
+                    onChange={e => {
+                      const selectedName = e.target.value;
+                      const selectedClient = clients.find(c => c.name === selectedName);
+                      if (selectedClient) {
+                        setClientSelections(prev => ({ ...prev, [meeting.id]: selectedClient.id }));
+                      }
+                    }}
+                    style={{ padding: '6px 10px', marginRight: 10 }}
+                  />
+                  <datalist id={`clients-${meeting.id}`}>
+                    {clients.map(client => (
+                      <option key={client.id} value={client.name} />
+                    ))}
+                  </datalist>
+                  <button onClick={() => handleAssignExistingClient(meeting.id)}>Assign</button>
+                </div>
+              )}
+            </div>
+          </div>
+        ))
+      )}
 
       <button onClick={handleLogout} style={{ marginTop: '40px', padding: '10px 20px' }}>
         Logout
