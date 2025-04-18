@@ -106,8 +106,6 @@ export default function Dashboard() {
 
     if (error) {
       alert('Failed to assign client');
-    } else {
-      setUnassignedMeetings(prev => prev.filter(m => m.id !== meetingId));
     }
   };
 
@@ -143,7 +141,11 @@ export default function Dashboard() {
       .update({ opportunity_id: opportunityId })
       .eq('id', meetingId);
 
-    if (error) alert('Failed to assign opportunity');
+    if (error) {
+      alert('Failed to assign opportunity');
+    } else {
+      setUnassignedMeetings(prev => prev.filter(m => m.id !== meetingId));
+    }
   };
 
   const handleAssignOpportunity = async (meetingId: string) => {
