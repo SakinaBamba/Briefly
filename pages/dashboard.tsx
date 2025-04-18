@@ -104,7 +104,11 @@ export default function Dashboard() {
       .update({ client_id: clientId })
       .eq('id', meetingId);
 
-    if (error) alert('Failed to assign client');
+    if (error) {
+      alert('Failed to assign client');
+    } else {
+      setUnassignedMeetings(prev => prev.filter(m => m.id !== meetingId));
+    }
   };
 
   const handleAssignExistingClient = async (meetingId: string) => {
