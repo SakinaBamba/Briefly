@@ -95,7 +95,7 @@ export default function Dashboard() {
     setClients(prev => [...prev, data]);
     setClientSelections(prev => ({ ...prev, [meetingId]: data.id }));
     setShowInputFor(prev => ({ ...prev, [meetingId]: false }));
-    assignClientToMeeting(meetingId, data.id);
+    await assignClientToMeeting(meetingId, data.id);
   };
 
   const assignClientToMeeting = async (meetingId: string, clientId: string) => {
@@ -104,17 +104,13 @@ export default function Dashboard() {
       .update({ client_id: clientId })
       .eq('id', meetingId);
 
-    if (error) {
-      alert('Failed to assign client');
-    } else {
-      fetchUnassignedMeetings();
-    }
+    if (error) alert('Failed to assign client');
   };
 
   const handleAssignExistingClient = async (meetingId: string) => {
     const clientId = clientSelections[meetingId];
     if (!clientId) return alert('Please select a client first');
-    assignClientToMeeting(meetingId, clientId);
+    await assignClientToMeeting(meetingId, clientId);
   };
 
   const handleCreateOpportunity = async (meetingId: string, clientId: string) => {
@@ -143,11 +139,7 @@ export default function Dashboard() {
       .update({ opportunity_id: opportunityId })
       .eq('id', meetingId);
 
-    if (error) {
-      alert('Failed to assign opportunity');
-    } else {
-      fetchUnassignedMeetings();
-    }
+    if (error) alert('Failed to assign opportunity');
   };
 
   const handleAssignOpportunity = async (meetingId: string) => {
@@ -174,7 +166,7 @@ export default function Dashboard() {
               <h4>Proposal Items:</h4>
               <ul style={{ textAlign: 'left', display: 'inline-block' }}>
                 {proposalItems.map((item, idx) => (
-                  <li key={idx}>{item.replace(/^-\s*/, '')}</li>
+                  <li key={idx}>{item.replace(/^\-\s*/, '')}</li>
                 ))}
               </ul>
             </>
@@ -203,7 +195,7 @@ export default function Dashboard() {
                   <p><strong>Proposal Items:</strong></p>
                   <ul>
                     {meeting.proposal_items.map((item, idx) => (
-                      <li key={idx}>{item.replace(/^-\s*/, '')}</li>
+                      <li key={idx}>{item.replace(/^\-\s*/, '')}</li>
                     ))}
                   </ul>
                 </>
@@ -312,3 +304,4 @@ export default function Dashboard() {
     </div>
   );
 }
+
