@@ -1,5 +1,6 @@
 'use client'
 
+import Link from 'next/link';
 import { useSession, useSupabaseClient } from '@supabase/auth-helpers-react';
 import { useRouter } from 'next/router';
 import { useEffect, useState } from 'react';
@@ -165,168 +166,185 @@ export default function Dashboard() {
   if (!session) return <p>Loading...</p>;
 
   return (
-    <div style={{ textAlign: 'center', marginTop: '50px' }}>
-      <h1>Welcome, {session.user.email}</h1>
-      <button onClick={handleSummarize} style={{ margin: '20px', padding: '10px 20px' }}>
-        Summarize Meeting
-      </button>
+    <div style={{ display: 'flex' }}>
+      {/* Left Menu */}
+      <div style={{ width: '250px', padding: '20px', borderRight: '1px solid #ddd' }}>
+        <h2>📁 Clients</h2>
+        <ul style={{ listStyle: 'none', padding: 0 }}>
+          {clients.map(client => (
+            <li key={client.id} style={{ marginBottom: '8px' }}>
+              <Link href={`/client/${client.id}`}>
+                <a style={{ color: '#0070f3', textDecoration: 'none' }}>{client.name}</a>
+              </Link>
+            </li>
+          ))}
+        </ul>
+      </div>
 
-      {summary && (
-        <div style={{ marginTop: '40px' }}>
-          <h3>Latest Meeting Summary:</h3>
-          <p>{summary}</p>
-          {proposalItems.length > 0 && (
-            <>
-              <h4>Proposal Items:</h4>
-              <ul style={{ textAlign: 'left', display: 'inline-block' }}>
-                {proposalItems.map((item, idx) => (
-                  <li key={idx}>{item.replace(/^\-\s*/, '')}</li>
-                ))}
-              </ul>
-            </>
-          )}
-        </div>
-      )}
+      {/* Main Content */}
+      <div style={{ flexGrow: 1, padding: '40px' }}>
+        <h1>Welcome, {session.user.email}</h1>
+        <button onClick={handleSummarize} style={{ margin: '20px', padding: '10px 20px' }}>
+          Summarize Meeting
+        </button>
 
-      <hr style={{ margin: '60px auto', width: '60%' }} />
-      <h2>🗂 Unassigned Meetings</h2>
+        {summary && (
+          <div style={{ marginTop: '40px' }}>
+            <h3>Latest Meeting Summary:</h3>
+            <p>{summary}</p>
+            {proposalItems.length > 0 && (
+              <>
+                <h4>Proposal Items:</h4>
+                <ul style={{ textAlign: 'left', display: 'inline-block' }}>
+                  {proposalItems.map((item, idx) => (
+                    <li key={idx}>{item.replace(/^\-\s*/, '')}</li>
+                  ))}
+                </ul>
+              </>
+            )}
+          </div>
+        )}
 
-      {unassignedMeetings.map(meeting => {
-        const clientId = clientSelections[meeting.id];
-        const client = clients.find(c => c.id === clientId);
-        const clientOpportunities = opportunities.filter(o => o.client_id === clientId);
+        <hr style={{ margin: '60px auto', width: '60%' }} />
+        <h2>🗂 Unassigned Meetings</h2>
 
-        return (
-          <div key={meeting.id} style={{ border: '1px solid #ccc', padding: 20, margin: 20 }}>
-            <p><strong>Summary:</strong> {meeting.summary}</p>
+        {unassignedMeetings.map(meeting => {
+          const clientId = clientSelections[meeting.id];
+          const client = clients.find(c => c.id === clientId);
+          const clientOpportunities = opportunities.filter(o => o.client_id === clientId);
 
-            <div style={{ marginTop: 20 }}>
-              {client && (
-                <div style={{ marginTop: 10 }}>
-                  <p><strong>Selected Client:</strong> {client.name}</p>
-                  <a
-                    href={`/client/${client.id}`}
-                    style={{
-                      backgroundColor: '#0070f3',
-                      color: 'white',
-                      padding: '6px 12px',
-                      textDecoration: 'none',
-                      borderRadius: 4,
-                      display: 'inline-block',
-                      marginTop: 4
-                    }}
-                    target="_blank"
-                  >
-                    📁 View Client Page
-                  </a>
-                </div>
-              )}
+          return (
+            <div key={meeting.id} style={{ border: '1px solid #ccc', padding: 20, margin: 20 }}>
+              <p><strong>Summary:</strong> {meeting.summary}</p>
 
-              <button
-                onClick={() => {
-                  setShowInputFor(prev => ({ ...prev, [meeting.id]: true }));
-                  setShowDropdownFor(prev => ({ ...prev, [meeting.id]: false }));
-                }}
-                style={{ marginRight: 10 }}
-              >
-                Create New Client
-              </button>
+              <div style={{ marginTop: 20 }}>
+                {client && (
+                  <div style={{ marginTop: 10 }}>
+                    <p><strong>Selected Client:</strong> {client.name}</p>
+                    <a
+                      href={`/client/${client.id}`}
+                      style={{
+                        backgroundColor: '#0070f3',
+                        color: 'white',
+                        padding: '6px 12px',
+                        textDecoration: 'none',
+                        borderRadius: 4,
+                        display: 'inline-block',
+                        marginTop: 4
+                      }}
+                      target="_blank"
+                    >
+                      📁 View Client Page
+                    </a>
+                  </div>
+                )}
 
-              {!showInputFor[meeting.id] && (
                 <button
                   onClick={() => {
-                    setShowDropdownFor(prev => ({ ...prev, [meeting.id]: true }));
-                    setShowInputFor(prev => ({ ...prev, [meeting.id]: false }));
+                    setShowInputFor(prev => ({ ...prev, [meeting.id]: true }));
+                    setShowDropdownFor(prev => ({ ...prev, [meeting.id]: false }));
                   }}
+                  style={{ marginRight: 10 }}
                 >
-                  Assign to Existing Client
+                  Create New Client
                 </button>
-              )}
 
-              {showInputFor[meeting.id] && (
-                <div style={{ marginTop: 10 }}>
-                  <input
-                    type="text"
-                    placeholder="Client name"
-                    value={newClientNames[meeting.id] || ''}
-                    onChange={e =>
-                      setNewClientNames(prev => ({ ...prev, [meeting.id]: e.target.value }))
-                    }
-                    style={{ padding: '6px', marginRight: 10 }}
-                  />
-                  <button onClick={() => handleCreateClient(meeting.id)}>Create & Assign</button>
-                </div>
-              )}
-
-              {showDropdownFor[meeting.id] && (
-                <div style={{ marginTop: 10 }}>
-                  <input
-                    list={`clients-${meeting.id}`}
-                    placeholder="Search client..."
-                    onChange={e => {
-                      const selectedName = e.target.value;
-                      const selectedClient = clients.find(c => c.name === selectedName);
-                      if (selectedClient) {
-                        setClientSelections(prev => ({ ...prev, [meeting.id]: selectedClient.id }));
-                      }
+                {!showInputFor[meeting.id] && (
+                  <button
+                    onClick={() => {
+                      setShowDropdownFor(prev => ({ ...prev, [meeting.id]: true }));
+                      setShowInputFor(prev => ({ ...prev, [meeting.id]: false }));
                     }}
-                    style={{ padding: '6px 10px', marginRight: 10 }}
-                  />
-                  <datalist id={`clients-${meeting.id}`}>
-                    {clients.map(client => (
-                      <option key={client.id} value={client.name} />
-                    ))}
-                  </datalist>
-                  <button onClick={() => handleAssignExistingClient(meeting.id)}>Assign</button>
-                </div>
-              )}
+                  >
+                    Assign to Existing Client
+                  </button>
+                )}
 
-              {clientId && client && (
-                <div style={{ marginTop: 20 }}>
-                  <p><strong>Assign Opportunity:</strong></p>
-
-                  {!justCreatedClientFor[meeting.id] && (
-                    <>
-                      <select
-                        value={opportunitySelections[meeting.id] || ''}
-                        onChange={e =>
-                          setOpportunitySelections(prev => ({ ...prev, [meeting.id]: e.target.value }))
-                        }
-                        style={{ padding: '6px', marginRight: 10 }}
-                      >
-                        <option value="">Select opportunity</option>
-                        {clientOpportunities.map(op => (
-                          <option key={op.id} value={op.id}>{op.name}</option>
-                        ))}
-                      </select>
-                      <button onClick={() => handleAssignOpportunity(meeting.id)}>Assign</button>
-                    </>
-                  )}
-
+                {showInputFor[meeting.id] && (
                   <div style={{ marginTop: 10 }}>
                     <input
                       type="text"
-                      placeholder="New opportunity name"
-                      value={newOpportunityNames[meeting.id] || ''}
+                      placeholder="Client name"
+                      value={newClientNames[meeting.id] || ''}
                       onChange={e =>
-                        setNewOpportunityNames(prev => ({ ...prev, [meeting.id]: e.target.value }))
+                        setNewClientNames(prev => ({ ...prev, [meeting.id]: e.target.value }))
                       }
                       style={{ padding: '6px', marginRight: 10 }}
                     />
-                    <button onClick={() => handleCreateOpportunity(meeting.id, clientId)}>
-                      Create & Assign
-                    </button>
+                    <button onClick={() => handleCreateClient(meeting.id)}>Create & Assign</button>
                   </div>
-                </div>
-              )}
-            </div>
-          </div>
-        );
-      })}
+                )}
 
-      <button onClick={handleLogout} style={{ marginTop: '40px', padding: '10px 20px' }}>
-        Logout
-      </button>
+                {showDropdownFor[meeting.id] && (
+                  <div style={{ marginTop: 10 }}>
+                    <input
+                      list={`clients-${meeting.id}`}
+                      placeholder="Search client..."
+                      onChange={e => {
+                        const selectedName = e.target.value;
+                        const selectedClient = clients.find(c => c.name === selectedName);
+                        if (selectedClient) {
+                          setClientSelections(prev => ({ ...prev, [meeting.id]: selectedClient.id }));
+                        }
+                      }}
+                      style={{ padding: '6px 10px', marginRight: 10 }}
+                    />
+                    <datalist id={`clients-${meeting.id}`}>
+                      {clients.map(client => (
+                        <option key={client.id} value={client.name} />
+                      ))}
+                    </datalist>
+                    <button onClick={() => handleAssignExistingClient(meeting.id)}>Assign</button>
+                  </div>
+                )}
+
+                {clientId && client && (
+                  <div style={{ marginTop: 20 }}>
+                    <p><strong>Assign Opportunity:</strong></p>
+
+                    {!justCreatedClientFor[meeting.id] && (
+                      <>
+                        <select
+                          value={opportunitySelections[meeting.id] || ''}
+                          onChange={e =>
+                            setOpportunitySelections(prev => ({ ...prev, [meeting.id]: e.target.value }))
+                          }
+                          style={{ padding: '6px', marginRight: 10 }}
+                        >
+                          <option value="">Select opportunity</option>
+                          {clientOpportunities.map(op => (
+                            <option key={op.id} value={op.id}>{op.name}</option>
+                          ))}
+                        </select>
+                        <button onClick={() => handleAssignOpportunity(meeting.id)}>Assign</button>
+                      </>
+                    )}
+
+                    <div style={{ marginTop: 10 }}>
+                      <input
+                        type="text"
+                        placeholder="New opportunity name"
+                        value={newOpportunityNames[meeting.id] || ''}
+                        onChange={e =>
+                          setNewOpportunityNames(prev => ({ ...prev, [meeting.id]: e.target.value }))
+                        }
+                        style={{ padding: '6px', marginRight: 10 }}
+                      />
+                      <button onClick={() => handleCreateOpportunity(meeting.id, clientId)}>
+                        Create & Assign
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          );
+        })}
+
+        <button onClick={handleLogout} style={{ marginTop: '40px', padding: '10px 20px' }}>
+          Logout
+        </button>
+      </div>
     </div>
   );
 }
