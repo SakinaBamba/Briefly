@@ -79,11 +79,19 @@ export default function Dashboard() {
   const handleCreateClient = async (meetingId: string) => {
     const name = newClientNames[meetingId]?.trim();
     if (!name) return;
+
+    const existingClient = clients.find(c => c.name.toLowerCase() === name.toLowerCase());
+    if (existingClient) {
+      alert('A client with this name already exists. Please use a different name.');
+      return;
+    }
+
     const { data, error } = await supabase
       .from('clients')
       .insert([{ name }])
       .select()
       .single();
+
     if (error || !data) {
       alert('Failed to create client');
       return;
@@ -108,21 +116,32 @@ export default function Dashboard() {
     const clientId = clientSelections[meetingId];
     if (!clientId) return alert('Please select a client first');
     await assignClientToMeeting(meetingId, clientId);
-    setJustCreatedClientFor(prev => ({ ...prev, [meetingId]: false })); // not a new client
+    setJustCreatedClientFor(prev => ({ ...prev, [meetingId]: false }));
   };
 
   const handleCreateOpportunity = async (meetingId: string, clientId: string) => {
     const name = newOpportunityNames[meetingId]?.trim();
     if (!name) return;
+
+    const existingOpp = opportunities.find(
+      o => o.client_id === clientId && o.name.toLowerCase() === name.toLowerCase()
+    );
+    if (existingOpp) {
+      alert('An opportunity with this name already exists for this client. Please choose another name.');
+      return;
+    }
+
     const { data, error } = await supabase
       .from('opportunities')
       .insert([{ client_id: clientId, name }])
       .select()
       .single();
+
     if (error || !data) {
       alert('Failed to create opportunity');
       return;
     }
+
     setOpportunities(prev => [...prev, data]);
     setOpportunitySelections(prev => ({ ...prev, [meetingId]: data.id }));
     assignOpportunityToMeeting(meetingId, data.id);
@@ -292,7 +311,6 @@ export default function Dashboard() {
     </div>
   );
 }
-
 
 
 
