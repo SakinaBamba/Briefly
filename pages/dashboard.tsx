@@ -201,7 +201,26 @@ export default function Dashboard() {
             <p><strong>Summary:</strong> {meeting.summary}</p>
 
             <div style={{ marginTop: 20 }}>
-              {client && <p><strong>Selected Client:</strong> {client.name}</p>}
+              {client && (
+                <div style={{ marginTop: 10 }}>
+                  <p><strong>Selected Client:</strong> {client.name}</p>
+                  <a
+                    href={`/client/${client.id}`}
+                    style={{
+                      backgroundColor: '#0070f3',
+                      color: 'white',
+                      padding: '6px 12px',
+                      textDecoration: 'none',
+                      borderRadius: 4,
+                      display: 'inline-block',
+                      marginTop: 4
+                    }}
+                    target="_blank"
+                  >
+                    📁 View Client Page
+                  </a>
+                </div>
+              )}
 
               <button
                 onClick={() => {
@@ -311,6 +330,5 @@ export default function Dashboard() {
     </div>
   );
 }
-
 
 
