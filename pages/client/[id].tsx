@@ -86,6 +86,7 @@ export default function ClientPage() {
                   ))
                 )}
 
+                {/* 📄 Generate Proposal Button */}
                 <button
                   onClick={async () => {
                     const res = await fetch('/api/generateProposal', {
@@ -120,6 +121,34 @@ export default function ClientPage() {
                 >
                   📄 Generate Proposal
                 </button>
+
+                {/* 📎 File Upload */}
+                <div style={{ marginTop: '20px' }}>
+                  <p><strong>Upload a file (RFP, Email, etc.):</strong></p>
+                  <input
+                    type="file"
+                    onChange={async (e) => {
+                      const file = e.target.files?.[0]
+                      if (!file) return
+
+                      const formData = new FormData()
+                      formData.append('opportunity_id', opp.id)
+                      formData.append('file', file)
+
+                      const res = await fetch('/api/uploadFile', {
+                        method: 'POST',
+                        body: formData
+                      })
+
+                      if (res.ok) {
+                        alert('✅ File uploaded successfully!')
+                      } else {
+                        const error = await res.json()
+                        alert(`❌ Upload failed: ${error.error || 'Unknown error'}`)
+                      }
+                    }}
+                  />
+                </div>
               </div>
             )
           })}
