@@ -86,7 +86,40 @@ export default function ClientPage() {
                   ))
                 )}
 
-                {/* 🔜 Optional: Add Generate Proposal Button Here */}
+                <button
+                  onClick={async () => {
+                    const res = await fetch('/api/generateProposal', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ opportunity_id: opp.id })
+                    })
+
+                    if (!res.ok) {
+                      alert('Failed to generate proposal')
+                      return
+                    }
+
+                    const blob = await res.blob()
+                    const url = window.URL.createObjectURL(blob)
+                    const a = document.createElement('a')
+                    a.href = url
+                    a.download = `${client.name} - ${opp.name} Proposal.docx`
+                    document.body.appendChild(a)
+                    a.click()
+                    a.remove()
+                  }}
+                  style={{
+                    backgroundColor: '#0070f3',
+                    color: 'white',
+                    border: 'none',
+                    padding: '10px 16px',
+                    borderRadius: '6px',
+                    cursor: 'pointer',
+                    marginTop: '10px'
+                  }}
+                >
+                  📄 Generate Proposal
+                </button>
               </div>
             )
           })}
@@ -95,3 +128,4 @@ export default function ClientPage() {
     </div>
   )
 }
+
