@@ -1,7 +1,6 @@
 import { NextApiRequest, NextApiResponse } from 'next'
 import { createClient } from '@supabase/supabase-js'
 
-
 export const config = {
   api: {
     bodyParser: false
@@ -11,10 +10,9 @@ export const config = {
 import formidable from 'formidable'
 import fs from 'fs'
 
-// Setup Supabase Admin client
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY! // ⛔ This should be secret and stored in Vercel
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
 )
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
@@ -26,10 +24,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     if (err) return res.status(500).json({ error: 'Failed to parse form' })
 
     const opportunity_id = fields.opportunity_id?.[0]
+    const source_date = fields.source_date?.[0]
     const file = files.file?.[0]
 
-    if (!opportunity_id || !file) {
-      return res.status(400).json({ error: 'Missing opportunity_id or file' })
+    if (!opportunity_id || !file || !source_date) {
+      return res.status(400).json({ error: 'Missing required fields' })
     }
 
     const fileStream = fs.createReadStream(file.filepath)
@@ -49,7 +48,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const { error: insertError } = await supabase.from('opportunity_files').insert({
       opportunity_id,
       file_name: file.originalFilename,
-      storage_path: path
+      storage_path: path,
+      source_date
     })
 
     if (insertError) {
@@ -59,3 +59,4 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(200).json({ message: 'File uploaded successfully' })
   })
 }
+
