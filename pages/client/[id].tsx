@@ -13,6 +13,7 @@ export default function ClientPage() {
   const [client, setClient] = useState<any>(null)
   const [opportunities, setOpportunities] = useState<any[]>([])
   const [meetings, setMeetings] = useState<any[]>([])
+  const [opportunityClarifications, setOpportunityClarifications] = useState<{ [key: string]: any[] }>({})
 
   useEffect(() => {
     if (!clientId) return
@@ -41,6 +42,20 @@ export default function ClientPage() {
         .eq('client_id', clientId)
         .order('created_at', { ascending: true })
       setMeetings(mtgs || [])
+
+      // Fetch clarifications
+      const { data: clarifications } = await supabase
+        .from('clarifications')
+        .select('*')
+        .in('opportunity_id', opps?.map(o => o.id) || [])
+
+      const groupedClarifications = (clarifications || []).reduce((acc: any, curr: any) => {
+        acc[curr.opportunity_id] = acc[curr.opportunity_id] || []
+        acc[curr.opportunity_id].push(curr)
+        return acc
+      }, {})
+
+      setOpportunityClarifications(groupedClarifications)
     }
 
     fetchData()
@@ -161,6 +176,48 @@ export default function ClientPage() {
                     }}
                   />
                 </div>
+
+                {/* ⚠️ AI Clarification Prompts */}
+                <div style={{ marginTop: '30px' }}>
+                  <p><strong>⚠️ AI Clarification Prompts:</strong></p>
+
+                  {opportunityClarifications[opp.id]?.map((c: any) => (
+                    <div key={c.id} style={{ marginBottom: '16px' }}>
+                      <p>{c.ai_question}</p>
+                      {c.user_response ? (
+                        <p><em>✅ You responded:</em> {c.user_response}</p>
+                      ) : (
+                        <>
+                          <textarea
+                            rows={2}
+                            placeholder="Your clarification..."
+                            style={{ width: '100%', padding: '6px', marginTop: '6px' }}
+                            onBlur={async (e) => {
+                              const user_response = e.target.value
+                              if (!user_response.trim()) return
+
+                              const res = await fetch('/api/saveClarification', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({
+                                  opportunity_id: opp.id,
+                                  ai_question: c.ai_question,
+                                  user_response
+                                })
+                              })
+
+                              if (res.ok) {
+                                alert('Saved!')
+                              } else {
+                                alert('Failed to save clarification.')
+                              }
+                            }}
+                          />
+                        </>
+                      )}
+                    </div>
+                  ))}
+                </div>
               </div>
             )
           })}
@@ -169,4 +226,5 @@ export default function ClientPage() {
     </div>
   )
 }
+
 
