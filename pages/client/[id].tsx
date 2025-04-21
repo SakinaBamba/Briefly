@@ -19,7 +19,6 @@ export default function ClientPage() {
     if (!clientId) return
 
     const fetchData = async () => {
-      // Fetch client info
       const { data: clientData } = await supabase
         .from('clients')
         .select('*')
@@ -27,7 +26,6 @@ export default function ClientPage() {
         .single()
       setClient(clientData)
 
-      // Fetch opportunities
       const { data: opps } = await supabase
         .from('opportunities')
         .select('*')
@@ -35,7 +33,6 @@ export default function ClientPage() {
         .order('created_at', { ascending: true })
       setOpportunities(opps || [])
 
-      // Fetch meetings
       const { data: mtgs } = await supabase
         .from('meetings')
         .select('*')
@@ -43,19 +40,21 @@ export default function ClientPage() {
         .order('created_at', { ascending: true })
       setMeetings(mtgs || [])
 
-      // Fetch clarifications
-      const { data: clarifications } = await supabase
-        .from('clarifications')
-        .select('*')
-        .in('opportunity_id', opps?.map(o => o.id) || [])
+      const opportunityIds = (opps || []).map((o: any) => o.id)
+      if (opportunityIds.length > 0) {
+        const { data: clarifications } = await supabase
+          .from('clarifications')
+          .select('*')
+          .in('opportunity_id', opportunityIds)
 
-      const groupedClarifications = (clarifications || []).reduce((acc: any, curr: any) => {
-        acc[curr.opportunity_id] = acc[curr.opportunity_id] || []
-        acc[curr.opportunity_id].push(curr)
-        return acc
-      }, {})
+        const groupedClarifications = (clarifications || []).reduce((acc: any, curr: any) => {
+          acc[curr.opportunity_id] = acc[curr.opportunity_id] || []
+          acc[curr.opportunity_id].push(curr)
+          return acc
+        }, {})
 
-      setOpportunityClarifications(groupedClarifications)
+        setOpportunityClarifications(groupedClarifications)
+      }
     }
 
     fetchData()
@@ -101,7 +100,6 @@ export default function ClientPage() {
                   ))
                 )}
 
-                {/* 📄 Generate Proposal Button */}
                 <button
                   onClick={async () => {
                     const res = await fetch('/api/generateProposal', {
@@ -137,17 +135,14 @@ export default function ClientPage() {
                   📄 Generate Proposal
                 </button>
 
-                {/* 📎 File Upload with Date */}
                 <div style={{ marginTop: '20px' }}>
                   <p><strong>Upload a file (RFP, Email, etc.):</strong></p>
-
                   <input
                     type="date"
                     id={`file-date-${opp.id}`}
                     defaultValue={new Date().toISOString().split('T')[0]}
                     style={{ marginRight: '10px', padding: '5px' }}
                   />
-
                   <input
                     type="file"
                     onChange={async (e) => {
@@ -177,43 +172,39 @@ export default function ClientPage() {
                   />
                 </div>
 
-                {/* ⚠️ AI Clarification Prompts */}
                 <div style={{ marginTop: '30px' }}>
                   <p><strong>⚠️ AI Clarification Prompts:</strong></p>
-
                   {opportunityClarifications[opp.id]?.map((c: any) => (
                     <div key={c.id} style={{ marginBottom: '16px' }}>
                       <p>{c.ai_question}</p>
                       {c.user_response ? (
                         <p><em>✅ You responded:</em> {c.user_response}</p>
                       ) : (
-                        <>
-                          <textarea
-                            rows={2}
-                            placeholder="Your clarification..."
-                            style={{ width: '100%', padding: '6px', marginTop: '6px' }}
-                            onBlur={async (e) => {
-                              const user_response = e.target.value
-                              if (!user_response.trim()) return
+                        <textarea
+                          rows={2}
+                          placeholder="Your clarification..."
+                          style={{ width: '100%', padding: '6px', marginTop: '6px' }}
+                          onBlur={async (e) => {
+                            const user_response = e.target.value
+                            if (!user_response.trim()) return
 
-                              const res = await fetch('/api/saveClarification', {
-                                method: 'POST',
-                                headers: { 'Content-Type': 'application/json' },
-                                body: JSON.stringify({
-                                  opportunity_id: opp.id,
-                                  ai_question: c.ai_question,
-                                  user_response
-                                })
+                            const res = await fetch('/api/saveClarification', {
+                              method: 'POST',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({
+                                opportunity_id: opp.id,
+                                ai_question: c.ai_question,
+                                user_response
                               })
+                            })
 
-                              if (res.ok) {
-                                alert('Saved!')
-                              } else {
-                                alert('Failed to save clarification.')
-                              }
-                            }}
-                          />
-                        </>
+                            if (res.ok) {
+                              alert('Saved!')
+                            } else {
+                              alert('Failed to save clarification.')
+                            }
+                          }}
+                        />
                       )}
                     </div>
                   ))}
