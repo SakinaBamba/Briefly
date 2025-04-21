@@ -7,7 +7,7 @@ import pdfParse from 'pdf-parse'
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY! // SERVICE ROLE for private bucket access
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
 )
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
@@ -17,13 +17,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   if (!opportunity_id) return res.status(400).json({ error: 'Missing opportunity_id' })
 
   try {
-    // Fetch meetings
     const { data: meetings } = await supabase
       .from('meetings')
       .select('*')
       .eq('opportunity_id', opportunity_id)
 
-    // Fetch opportunity and client
     const { data: opportunity } = await supabase
       .from('opportunities')
       .select('name, client_id')
@@ -36,13 +34,16 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       .eq('id', opportunity.client_id)
       .single()
 
-    // Fetch uploaded files
     const { data: files } = await supabase
       .from('opportunity_files')
       .select('*')
       .eq('opportunity_id', opportunity_id)
 
-    // Extract text from files
+    const { data: clarifications } = await supabase
+      .from('clarifications')
+      .select('*')
+      .eq('opportunity_id', opportunity_id)
+
     const extractedFiles = await Promise.all(
       (files || []).map(async file => {
         const { data: signed } = await supabase.storage
@@ -73,7 +74,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       })
     )
 
-    // Combine all sources
     const timeline = [
       ...meetings.map(m => ({
         type: 'meeting',
@@ -83,12 +83,14 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       ...(extractedFiles.filter(Boolean) as { date: string, text: string }[])
     ]
 
-    // Sort by date
     timeline.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
-
     const combinedText = timeline.map(item => item.text).join('\n\n---\n\n')
 
-    // Send to GPT-4
+    const clarificationText = (clarifications || [])
+      .filter(c => c.user_response)
+      .map(c => `Client clarified: "${c.user_response}" (in response to: ${c.ai_question})`)
+      .join('\n')
+
     const gptResponse = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -100,16 +102,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         messages: [
           {
             role: 'system',
-            content: `You are a helpful assistant that summarizes meetings and uploaded documents and extracts proposal items. 
-You must:
-- Generate a summary of the conversation and documents
-- List proposal items as bullet points starting with "-"
-- If any later document or upload contradicts or modifies earlier content, flag it clearly.
-- Add a section at the end with your questions or items needing clarification from the user.`
+            content: `You are a helpful assistant that summarizes meetings and uploaded documents and extracts proposal items.\n\nYou must:\n- Generate a summary of the conversation and documents\n- List proposal items as bullet points starting with \"-\"\n- If any later document or upload contradicts earlier content, flag it clearly.\n- Respect user clarifications if provided.`
           },
           {
             role: 'user',
-            content: `Here are the chronological contents for proposal generation:\n\n${combinedText}`
+            content: `Here is the full chronological record:\n${combinedText}\n\n${clarificationText}`
           }
         ],
         temperature: 0.3,
@@ -123,7 +120,6 @@ You must:
     const summary = summaryPart?.trim() || 'Summary unavailable.'
 
     let proposal_items: string[] = []
-
     if (itemsPart) {
       const bulletItems = itemsPart.split("\n").filter(line => line.trim().startsWith("-"))
       proposal_items = bulletItems.length > 0
@@ -131,22 +127,6 @@ You must:
         : itemsPart.split(",").map(i => `- ${i.trim()}`).filter(i => i !== "-")
     }
 
-    // Save to meetings table as new entry (optional — you can comment this out)
-    const { error: insertError } = await supabase.from('meetings').insert([{
-      user_id: null,
-      transcript: combinedText,
-      summary,
-      proposal_items,
-      client_id: opportunity.client_id,
-      opportunity_id,
-      title: 'Auto-generated Proposal Draft'
-    }])
-
-    if (insertError) {
-      return res.status(500).json({ error: 'Failed to insert into Supabase', details: insertError })
-    }
-
-    // Generate docx proposal
     const doc = new Document({
       sections: [
         {
@@ -165,7 +145,6 @@ You must:
     })
 
     const buffer = await Packer.toBuffer(doc)
-
     res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document')
     res.setHeader('Content-Disposition', 'attachment; filename=proposal.docx')
     res.send(buffer)
