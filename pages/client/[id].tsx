@@ -1,82 +1,97 @@
 'use client'
 
-import { useRouter } from 'next/router';
-import { useEffect, useState } from 'react';
-import { useSession, useSupabaseClient } from '@supabase/auth-helpers-react';
+import { useRouter } from 'next/router'
+import { useEffect, useState } from 'react'
+import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
 
-export default function ClientView() {
-  const router = useRouter();
-  const session = useSession();
-  const supabase = useSupabaseClient();
-  const { id: clientId } = router.query;
+export default function ClientPage() {
+  const router = useRouter()
+  const supabase = createClientComponentClient()
 
-  const [client, setClient] = useState<any>(null);
-  const [opportunities, setOpportunities] = useState<any[]>([]);
-  const [meetings, setMeetings] = useState<any[]>([]);
+  const { id: clientId } = router.query
+
+  const [client, setClient] = useState<any>(null)
+  const [opportunities, setOpportunities] = useState<any[]>([])
+  const [meetings, setMeetings] = useState<any[]>([])
 
   useEffect(() => {
-    if (!session || !clientId) return;
-    fetchClient();
-    fetchOpportunities();
-    fetchMeetings();
-  }, [session, clientId]);
+    if (!clientId) return
 
-  const fetchClient = async () => {
-    const { data } = await supabase.from('clients').select('*').eq('id', clientId).single();
-    setClient(data);
-  };
+    const fetchData = async () => {
+      // Fetch client info
+      const { data: clientData } = await supabase
+        .from('clients')
+        .select('*')
+        .eq('id', clientId)
+        .single()
+      setClient(clientData)
 
-  const fetchOpportunities = async () => {
-    const { data } = await supabase.from('opportunities').select('*').eq('client_id', clientId);
-    setOpportunities(data || []);
-  };
+      // Fetch opportunities
+      const { data: opps } = await supabase
+        .from('opportunities')
+        .select('*')
+        .eq('client_id', clientId)
+        .order('created_at', { ascending: true })
+      setOpportunities(opps || [])
 
-  const fetchMeetings = async () => {
-    const { data } = await supabase
-      .from('meetings')
-      .select('*')
-      .eq('client_id', clientId)
-      .order('created_at');
-    setMeetings(data || []);
-  };
+      // Fetch meetings
+      const { data: mtgs } = await supabase
+        .from('meetings')
+        .select('*')
+        .eq('client_id', clientId)
+        .order('created_at', { ascending: true })
+      setMeetings(mtgs || [])
+    }
 
-  const meetingsByOpportunity = opportunities.map(op => ({
-    ...op,
-    meetings: meetings.filter(m => m.opportunity_id === op.id)
-  }));
+    fetchData()
+  }, [clientId])
 
-  if (!session) return <p>Loading session...</p>;
-  if (!client) return <p>Loading client data...</p>;
+  if (!client) return <p>Loading client info...</p>
+
+  const getMeetingsForOpportunity = (oppId: string) =>
+    meetings.filter(m => m.opportunity_id === oppId)
 
   return (
-    <div style={{ padding: 40 }}>
-      <h1>Client: {client.name}</h1>
+    <div style={{ padding: '40px' }}>
+      <h1>{client.name}</h1>
 
-      {meetingsByOpportunity.map(op => (
-        <div key={op.id} style={{ marginTop: 40 }}>
-          <h2>Opportunity: {op.name}</h2>
+      {opportunities.length === 0 ? (
+        <p>No opportunities yet.</p>
+      ) : (
+        <>
+          <h2>Opportunities</h2>
+          {opportunities.map(opp => {
+            const oppMeetings = getMeetingsForOpportunity(opp.id)
+            return (
+              <div key={opp.id} style={{ marginBottom: '40px', border: '1px solid #ccc', padding: '20px' }}>
+                <h3>{opp.name}</h3>
 
-          {op.meetings.length === 0 ? (
-            <p>No meetings yet.</p>
-          ) : (
-            op.meetings.map(m => (
-              <div key={m.id} style={{ border: '1px solid #ccc', padding: 15, marginBottom: 15 }}>
-                <p><strong>Summary:</strong> {m.summary}</p>
-                {m.proposal_items?.length > 0 && (
-                  <>
-                    <p><strong>Proposal Items:</strong></p>
-                    <ul>
-                      {m.proposal_items.map((item, idx) => (
-                        <li key={idx}>{item.replace(/^\-\s*/, '')}</li>
-                      ))}
-                    </ul>
-                  </>
+                {oppMeetings.length === 0 ? (
+                  <p>No meetings yet.</p>
+                ) : (
+                  oppMeetings.map(m => (
+                    <div key={m.id} style={{ marginBottom: '20px' }}>
+                      <p><strong>Summary:</strong> {m.summary}</p>
+                      {m.proposal_items?.length > 0 && (
+                        <>
+                          <p><strong>Proposal Items:</strong></p>
+                          <ul>
+                            {m.proposal_items.map((item: string, idx: number) => (
+                              <li key={idx}>{item.replace(/^-/, '').trim()}</li>
+                            ))}
+                          </ul>
+                        </>
+                      )}
+                    </div>
+                  ))
                 )}
+
+                {/* 🔜 Optional: Add Generate Proposal Button Here */}
               </div>
-            ))
-          )}
-        </div>
-      ))}
+            )
+          })}
+        </>
+      )}
     </div>
-  );
+  )
 }
