@@ -122,17 +122,29 @@ export default function ClientPage() {
                   📄 Generate Proposal
                 </button>
 
-                {/* 📎 File Upload */}
+                {/* 📎 File Upload with Date */}
                 <div style={{ marginTop: '20px' }}>
                   <p><strong>Upload a file (RFP, Email, etc.):</strong></p>
+
+                  <input
+                    type="date"
+                    id={`file-date-${opp.id}`}
+                    defaultValue={new Date().toISOString().split('T')[0]}
+                    style={{ marginRight: '10px', padding: '5px' }}
+                  />
+
                   <input
                     type="file"
                     onChange={async (e) => {
                       const file = e.target.files?.[0]
                       if (!file) return
 
+                      const dateInput = document.getElementById(`file-date-${opp.id}`) as HTMLInputElement
+                      const sourceDate = dateInput?.value
+
                       const formData = new FormData()
                       formData.append('opportunity_id', opp.id)
+                      formData.append('source_date', sourceDate || new Date().toISOString().split('T')[0])
                       formData.append('file', file)
 
                       const res = await fetch('/api/uploadFile', {
