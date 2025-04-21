@@ -13,7 +13,10 @@
     "docx": "^8.4.1",
     "formidable": "^2.1.1",
     "fs": "0.0.1-security",
+    "mammoth": "^1.4.2",
     "next": "^13.4.10",
+    "node-fetch": "^2.6.7",
+    "pdf-parse": "^1.1.1",
     "react": "^18.2.0",
     "react-dom": "^18.2.0"
   },
