@@ -7,9 +7,9 @@ import 'isomorphic-fetch';
 
 const msalConfig = {
   auth: {
-    clientId: process.env.MS_CLIENT_ID!,
-    authority: `https://login.microsoftonline.com/${process.env.MS_TENANT_ID}`,
-    clientSecret: process.env.MS_CLIENT_SECRET!,
+    clientId: process.env.NEXT_PUBLIC_MICROSOFT_CLIENT_ID!,
+    authority: `https://login.microsoftonline.com/${process.env.NEXT_PUBLIC_MICROSOFT_TENANT_ID}`,
+    clientSecret: process.env.MICROSOFT_CLIENT_SECRET!,
   }
 };
 
@@ -47,6 +47,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     // 4. Kick off transcription
     const { meetingId, callId } = req.body;
+    if (!meetingId || !callId) {
+      return res.status(400).json({ error: 'Missing meetingId or callId in request body' });
+    }
+
     await graphClient
       .api(`/communications/calls/${callId}/startTranscription`)
       .post({
@@ -67,3 +71,4 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(500).json({ error: error.message });
   }
 }
+
