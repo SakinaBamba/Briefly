@@ -1,13 +1,16 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
-
 
 export default function Home() {
   const router = useRouter();
   const supabase = createClientComponentClient();
+
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [mode, setMode] = useState<'sign-in' | 'sign-up'>('sign-in');
 
   useEffect(() => {
     const getSession = async () => {
@@ -17,42 +20,55 @@ export default function Home() {
     getSession();
   }, []);
 
-  const handleGoogleSignIn = async () => {
-    await supabase.auth.signInWithOAuth({
-      provider: 'google',
-      options: { redirectTo: `${window.location.origin}/auth/callback` }
-    });
-  };
-
-  const handleMicrosoftSignIn = async () => {
-    await supabase.auth.signInWithOAuth({
-      provider: 'azure',
-      options: {
-        scopes: 'openid email profile offline_access Calendars.Read OnlineMeetings.Read',
-        redirectTo: `${window.location.origin}/auth/callback`
-      }
-    });
+  const handleSubmit = async (e: any) => {
+    e.preventDefault();
+    if (mode === 'sign-in') {
+      const { error } = await supabase.auth.signInWithPassword({ email, password });
+      if (error) alert(error.message);
+    } else {
+      const { error } = await supabase.auth.signUp({ email, password });
+      if (error) alert(error.message);
+    }
+    router.push('/dashboard');
   };
 
   return (
     <main style={{ padding: '2rem', textAlign: 'center' }}>
       <h1>Welcome to Briefly</h1>
 
-      <div style={{ marginTop: '30px' }}>
+      <form onSubmit={handleSubmit} style={{ marginTop: '30px' }}>
+        <input
+          type="email"
+          placeholder="Email"
+          value={email}
+          onChange={e => setEmail(e.target.value)}
+          style={{ padding: '10px', marginBottom: '10px', width: '250px' }}
+          required
+        />
+        <br />
+        <input
+          type="password"
+          placeholder="Password"
+          value={password}
+          onChange={e => setPassword(e.target.value)}
+          style={{ padding: '10px', marginBottom: '20px', width: '250px' }}
+          required
+        />
+        <br />
         <button
-          onClick={handleGoogleSignIn}
-          style={{ padding: '10px 20px', marginRight: '20px' }}
+          type="submit"
+          style={{ padding: '10px 20px', marginBottom: '10px' }}
         >
-          Sign in with Google
+          {mode === 'sign-in' ? 'Sign In' : 'Sign Up'}
         </button>
+      </form>
 
-        <button
-          onClick={handleMicrosoftSignIn}
-          style={{ padding: '10px 20px', backgroundColor: '#0078D4', color: 'white', border: 'none', borderRadius: '4px' }}
-        >
-          Sign in with Microsoft
-        </button>
-      </div>
+      <button
+        onClick={() => setMode(mode === 'sign-in' ? 'sign-up' : 'sign-in')}
+        style={{ marginTop: '10px' }}
+      >
+        {mode === 'sign-in' ? 'No account? Sign Up' : 'Already have an account? Sign In'}
+      </button>
     </main>
   );
 }
