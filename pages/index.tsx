@@ -1,75 +1,63 @@
-'use client';
-
-import { useEffect, useState } from 'react';
+// pages/index.tsx
+import { useSession, useSupabaseClient } from '@supabase/auth-helpers-react';
 import { useRouter } from 'next/router';
-import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
+import { useEffect, useState } from 'react';
 
 export default function Home() {
+  const session = useSession();
+  const supabase = useSupabaseClient();
   const router = useRouter();
-  const supabase = createClientComponentClient();
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [mode, setMode] = useState<'sign-in' | 'sign-up'>('sign-in');
+  const [error, setError] = useState('');
 
   useEffect(() => {
-    const getSession = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (session) router.push('/dashboard');
-    };
-    getSession();
-  }, []);
-
-  const handleSubmit = async (e: any) => {
-    e.preventDefault();
-    if (mode === 'sign-in') {
-      const { error } = await supabase.auth.signInWithPassword({ email, password });
-      if (error) alert(error.message);
-    } else {
-      const { error } = await supabase.auth.signUp({ email, password });
-      if (error) alert(error.message);
+    if (session) {
+      router.push('/dashboard');
     }
-    router.push('/dashboard');
+  }, [session]);
+
+  const handleSignIn = async () => {
+    const { error } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    });
+    if (error) setError(error.message);
+  };
+
+  const handleSignUp = async () => {
+    const { error } = await supabase.auth.signUp({
+      email,
+      password,
+    });
+    if (error) setError(error.message);
   };
 
   return (
-    <main style={{ padding: '2rem', textAlign: 'center' }}>
+    <div style={{ textAlign: 'center', marginTop: '100px' }}>
       <h1>Welcome to Briefly</h1>
-
-      <form onSubmit={handleSubmit} style={{ marginTop: '30px' }}>
-        <input
-          type="email"
-          placeholder="Email"
-          value={email}
-          onChange={e => setEmail(e.target.value)}
-          style={{ padding: '10px', marginBottom: '10px', width: '250px' }}
-          required
-        />
-        <br />
-        <input
-          type="password"
-          placeholder="Password"
-          value={password}
-          onChange={e => setPassword(e.target.value)}
-          style={{ padding: '10px', marginBottom: '20px', width: '250px' }}
-          required
-        />
-        <br />
-        <button
-          type="submit"
-          style={{ padding: '10px 20px', marginBottom: '10px' }}
-        >
-          {mode === 'sign-in' ? 'Sign In' : 'Sign Up'}
-        </button>
-      </form>
-
-      <button
-        onClick={() => setMode(mode === 'sign-in' ? 'sign-up' : 'sign-in')}
-        style={{ marginTop: '10px' }}
-      >
-        {mode === 'sign-in' ? 'No account? Sign Up' : 'Already have an account? Sign In'}
+      <input
+        type="email"
+        placeholder="Email"
+        value={email}
+        onChange={(e) => setEmail(e.target.value)}
+        style={{ display: 'block', margin: '10px auto', padding: '10px' }}
+      />
+      <input
+        type="password"
+        placeholder="Password"
+        value={password}
+        onChange={(e) => setPassword(e.target.value)}
+        style={{ display: 'block', margin: '10px auto', padding: '10px' }}
+      />
+      <button onClick={handleSignIn} style={{ marginRight: '10px' }}>
+        Sign In
       </button>
-    </main>
+      <button onClick={handleSignUp}>Sign Up</button>
+
+      {error && <p style={{ color: 'red' }}>{error}</p>}
+    </div>
   );
 }
 
