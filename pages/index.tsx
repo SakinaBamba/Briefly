@@ -27,7 +27,6 @@ export default function Home() {
     await supabase.auth.signInWithOAuth({
       provider: 'azure',
       options: {
-        providerSlug: 'azure', // 🔥 important for new Supabase model
         scopes: 'openid email profile offline_access Calendars.Read OnlineMeetings.Read',
         redirectTo: `${window.location.origin}/auth/callback`
       }
