@@ -163,16 +163,6 @@ export default function Dashboard() {
     assignOpportunityToMeeting(meetingId, id);
   };
 
-  const handleMicrosoftLogin = async () => {
-    await supabase.auth.signInWithOAuth({
-      provider: 'azure',
-      options: {
-        scopes: 'openid email profile offline_access Calendars.Read OnlineMeetings.Read',
-        redirectTo: `${window.location.origin}/auth/callback`
-      }
-    });
-  };
-
   if (!session) return <p>Loading...</p>;
 
   return (
@@ -197,10 +187,6 @@ export default function Dashboard() {
 
         <button onClick={handleSummarize} style={{ margin: '20px', padding: '10px 20px' }}>
           Summarize Meeting
-        </button>
-
-        <button onClick={handleMicrosoftLogin} style={{ margin: '20px', padding: '10px 20px', backgroundColor: '#0078D4', color: 'white', borderRadius: '4px', border: 'none' }}>
-          Sign in with Microsoft
         </button>
 
         {summary && (
@@ -231,11 +217,7 @@ export default function Dashboard() {
           return (
             <div key={meeting.id} style={{ border: '1px solid #ccc', padding: 20, margin: 20 }}>
               <p><strong>Summary:</strong> {meeting.summary}</p>
-
-              <div style={{ marginTop: 20 }}>
-                {/* Client and Opportunity assignment code here */}
-                {/* (kept same for brevity) */}
-              </div>
+              {/* Client and Opportunity assignment code (same as before) */}
             </div>
           );
         })}
