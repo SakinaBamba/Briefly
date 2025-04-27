@@ -3,6 +3,7 @@
 import { NextApiRequest, NextApiResponse } from 'next';
 import { getAccessToken } from '../../../utils/auth';
 
+
 const EXPECTED_CLIENT_STATE = 'secretClientValue12345';
 const MAX_RETRIES = 3;
 const RETRY_DELAY_MS = 5000;
