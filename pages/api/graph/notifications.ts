@@ -3,6 +3,8 @@
 import { NextApiRequest, NextApiResponse } from 'next';
 import { getAccessToken } from '../../../utils/auth';
 
+const EXPECTED_CLIENT_STATE = 'secretClientValue12345';
+
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method === 'GET') {
     const validationToken = req.query.validationToken as string;
@@ -19,12 +21,14 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       const notifications = req.body.value;
 
       for (const notification of notifications) {
-        const resource = notification.resource;
+        if (notification.clientState !== EXPECTED_CLIENT_STATE) {
+          console.warn('ClientState mismatch. Skipping notification.');
+          continue;
+        }
 
-        // Example: resource = /me/onlineMeetings/{meetingId}
+        const resource = notification.resource;
         const meetingId = resource.split('/').pop();
 
-        // Fetch meeting details
         const accessToken = await getAccessToken();
 
         const meetingRes = await fetch(`https://graph.microsoft.com/v1.0/me/onlineMeetings/${meetingId}`, {
@@ -42,10 +46,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         const meetingData = await meetingRes.json();
 
         if (meetingData.endDateTime) {
-          // Meeting ended, now fetch transcript if available
-          // (Note: This API may vary, double-check if transcripts are attached)
-
-          // Upload to Briefly
           await fetch('https://briefly-theta.vercel.app/api/uploadTranscript', {
             method: 'POST',
             headers: {
@@ -68,3 +68,4 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     res.status(405).send('Method not allowed');
   }
 }
+
