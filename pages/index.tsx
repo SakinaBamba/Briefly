@@ -1,62 +1,54 @@
-// pages/index.tsx
-import { useSession, useSupabaseClient } from '@supabase/auth-helpers-react';
-import { useRouter } from 'next/router';
+// File: /pages/index.tsx
+
 import { useEffect, useState } from 'react';
 
-export default function Home() {
-  const session = useSession();
-  const supabase = useSupabaseClient();
-  const router = useRouter();
+interface Meeting {
+  id: string;
+  title: string;
+  summary: string;
+  client_id: string | null;
+}
 
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [error, setError] = useState('');
+export default function HomePage() {
+  const [meetings, setMeetings] = useState<Meeting[]>([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (session) {
-      router.push('/dashboard');
-    }
-  }, [session]);
+    fetch('/api/getMeetings')
+      .then(res => res.json())
+      .then(data => {
+        setMeetings(data.meetings);
+        setLoading(false);
+      });
+  }, []);
 
-  const handleSignIn = async () => {
-    const { error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
-    if (error) setError(error.message);
-  };
-
-  const handleSignUp = async () => {
-    const { error } = await supabase.auth.signUp({
-      email,
-      password,
-    });
-    if (error) setError(error.message);
-  };
+  if (loading) {
+    return <p>Loading meetings...</p>;
+  }
 
   return (
-    <div style={{ textAlign: 'center', marginTop: '100px' }}>
-      <h1>Welcome to Briefly</h1>
-      <input
-        type="email"
-        placeholder="Email"
-        value={email}
-        onChange={(e) => setEmail(e.target.value)}
-        style={{ display: 'block', margin: '10px auto', padding: '10px' }}
-      />
-      <input
-        type="password"
-        placeholder="Password"
-        value={password}
-        onChange={(e) => setPassword(e.target.value)}
-        style={{ display: 'block', margin: '10px auto', padding: '10px' }}
-      />
-      <button onClick={handleSignIn} style={{ marginRight: '10px' }}>
-        Sign In
-      </button>
-      <button onClick={handleSignUp}>Sign Up</button>
-
-      {error && <p style={{ color: 'red' }}>{error}</p>}
+    <div className="p-6">
+      <h1 className="text-2xl font-bold mb-4">Your Meetings</h1>
+      {meetings.length === 0 ? (
+        <p>No meetings found.</p>
+      ) : (
+        <div className="space-y-4">
+          {meetings.map(meeting => (
+            <div key={meeting.id} className="p-4 border rounded-lg">
+              <h2 className="text-xl font-semibold">{meeting.title}</h2>
+              <p className="text-gray-600 mt-2">{meeting.summary}</p>
+              <p className="text-sm mt-2">
+                Client: {meeting.client_id ? meeting.client_id : 'Unassigned'}
+              </p>
+              {!meeting.client_id && (
+                <button className="mt-2 px-4 py-2 bg-blue-600 text-white rounded">
+                  Assign to Client
+                </button>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
