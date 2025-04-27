@@ -1,7 +1,7 @@
 {
   "$schema": "https://developer.microsoft.com/json-schemas/teams/vDevPreview/MicrosoftTeams.schema.json",
   "manifestVersion": "devPreview",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "id": "8646540e-f9ac-45e0-9270-ad937c9e4386",
   "packageName": "com.briefly.transcription",
   "developer": {
@@ -15,20 +15,16 @@
     "full": "Briefly Transcription Starter"
   },
   "description": {
-    "short": "Trigger Teams transcription and send it to Briefly",
-    "full": "Click “Start Briefly” in your Teams meeting to begin Microsoft’s built-in transcription, then automatically fetch the transcript into Briefly for AI-powered summaries and proposal generation."
+    "short": "Trigger Teams transcription and send to Briefly",
+    "full": "Click \"Start Briefly\" in your Teams meeting to begin transcription with Microsoft’s built-in service, then auto-fetch the transcript into Briefly for AI-powered summaries and proposal generation."
   },
   "icons": {
     "outline": "outline.png",
     "color": "color.png"
   },
   "accentColor": "#0078D4",
-  "permissions": [
-    "identity"
-  ],
-  "validDomains": [
-    "briefly-theta.vercel.app"
-  ],
+  "permissions": ["identity"],
+  "validDomains": ["briefly-theta.vercel.app"],
   "webApplicationInfo": {
     "id": "6aabb8b8-733e-4b5c-b930-a9719fba1129",
     "resource": "api://6aabb8b8-733e-4b5c-b930-a9719fba1129"
@@ -55,11 +51,12 @@
         "entityId": "brieflyStatusPanel",
         "title": "Briefly",
         "contentUrl": "https://briefly-theta.vercel.app/teams/sidePanel?meetingId={meetingId}&callId={callId}",
-        "scopes": [
-          "meetingStage"
-        ]
+        "scopes": ["meetingStage"]
       }
     ]
+  },
+  "defaultGroupCapability": {
+    "meetings": ["startBrieflyButton"]
   }
 }
 
