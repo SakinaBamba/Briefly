@@ -39,18 +39,6 @@ export default function HomePage() {
     setClients(data.clients);
   };
 
-  const handleAssign = async () => {
-    if (!assignMeetingId || !selectedClientId) return;
-    await fetch('/api/assignMeetingToClient', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ meetingId: assignMeetingId, clientId: selectedClientId })
-    });
-    setAssignMeetingId(null);
-    setSelectedClientId(null);
-    fetchMeetings();
-  };
-
   if (loading) {
     return <p>Loading meetings...</p>;
   }
@@ -98,6 +86,12 @@ export default function HomePage() {
                 </option>
               ))}
             </select>
+            <input
+              type="text"
+              placeholder="New client name..."
+              className="w-full p-2 border mb-2"
+              onChange={(e) => setSelectedClientId('new:' + e.target.value)}
+            />
             <div className="flex justify-end space-x-2">
               <button
                 className="px-4 py-2 bg-gray-400 text-white rounded"
@@ -107,7 +101,36 @@ export default function HomePage() {
               </button>
               <button
                 className="px-4 py-2 bg-blue-600 text-white rounded"
-                onClick={handleAssign}
+                onClick={async () => {
+                  if (!assignMeetingId || !selectedClientId) return;
+                  if (selectedClientId.startsWith('new:')) {
+                    const clientName = selectedClientId.slice(4);
+                    const res = await fetch('/api/createClient', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({
+                        userId: 'CURRENT_USER_ID_HERE',
+                        clientName
+                      })
+                    });
+                    const { client } = await res.json();
+                    await fetch('/api/assignMeetingToClient', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ meetingId: assignMeetingId, clientId: client.id })
+                    });
+                  } else {
+                    await fetch('/api/assignMeetingToClient', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ meetingId: assignMeetingId, clientId: selectedClientId })
+                    });
+                  }
+                  setAssignMeetingId(null);
+                  setSelectedClientId(null);
+                  fetchMeetings();
+                  fetchClients();
+                }}
                 disabled={!selectedClientId}
               >
                 Assign
