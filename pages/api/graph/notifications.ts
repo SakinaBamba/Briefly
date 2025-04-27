@@ -31,32 +31,60 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
         const accessToken = await getAccessToken();
 
-        const meetingRes = await fetch(`https://graph.microsoft.com/v1.0/me/onlineMeetings/${meetingId}`, {
+        // Fetch callRecord after meeting ends
+        const callRecordRes = await fetch(`https://graph.microsoft.com/v1.0/communications/callRecords/${meetingId}`, {
           headers: {
             'Authorization': `Bearer ${accessToken}`,
             'Content-Type': 'application/json'
           }
         });
 
-        if (!meetingRes.ok) {
-          console.error('Failed to fetch meeting', await meetingRes.text());
+        if (!callRecordRes.ok) {
+          console.error('Failed to fetch call record', await callRecordRes.text());
           continue;
         }
 
-        const meetingData = await meetingRes.json();
+        const callRecordData = await callRecordRes.json();
 
-        if (meetingData.endDateTime) {
-          await fetch('https://briefly-theta.vercel.app/api/uploadTranscript', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-              meetingId,
-              transcript: meetingData.transcripts || 'No transcript data available'
-            })
-          });
+        const transcriptUris: string[] = [];
+
+        if (callRecordData.sessions) {
+          for (const session of callRecordData.sessions) {
+            if (session.records) {
+              for (const record of session.records) {
+                if (record.recordingType === 'transcript' && record.contentUri) {
+                  transcriptUris.push(record.contentUri);
+                }
+              }
+            }
+          }
         }
+
+        if (transcriptUris.length === 0) {
+          console.log('No transcripts found for meeting:', meetingId);
+          continue;
+        }
+
+        // Fetch transcript content
+        const transcriptContent = await fetch(transcriptUris[0], {
+          headers: {
+            'Authorization': `Bearer ${accessToken}`
+          }
+        });
+
+        const transcriptText = await transcriptContent.text();
+
+        // Upload transcript to Briefly
+        await fetch('https://briefly-theta.vercel.app/api/uploadTranscript', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            meetingId,
+            transcript: transcriptText
+          })
+        });
       }
 
       res.status(202).send('Accepted');
@@ -68,4 +96,3 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     res.status(405).send('Method not allowed');
   }
 }
-
