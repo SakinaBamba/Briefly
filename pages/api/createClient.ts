@@ -14,17 +14,17 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   try {
-    const { userId, clientName } = req.body;
+    const { organizationId, clientName } = req.body;
 
-    if (!userId || !clientName) {
-      return res.status(400).json({ error: 'Missing userId or clientName' });
+    if (!organizationId || !clientName) {
+      return res.status(400).json({ error: 'Missing organizationId or clientName' });
     }
 
     const { data, error } = await supabase
       .from('clients')
       .insert([
         {
-          user_id: userId,
+          organization_id: organizationId,
           client_name: clientName
         }
       ])
