@@ -4,6 +4,12 @@ import { NextApiRequest, NextApiResponse } from 'next';
 import { getAccessToken } from '../../../utils/auth';
 
 const EXPECTED_CLIENT_STATE = 'secretClientValue12345';
+const MAX_RETRIES = 3;
+const RETRY_DELAY_MS = 5000;
+
+async function delay(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method === 'GET') {
@@ -31,41 +37,50 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
         const accessToken = await getAccessToken();
 
-        // Fetch callRecord after meeting ends
-        const callRecordRes = await fetch(`https://graph.microsoft.com/v1.0/communications/callRecords/${meetingId}`, {
-          headers: {
-            'Authorization': `Bearer ${accessToken}`,
-            'Content-Type': 'application/json'
+        let transcriptUris: string[] = [];
+        let attempts = 0;
+
+        while (attempts < MAX_RETRIES && transcriptUris.length === 0) {
+          const callRecordRes = await fetch(`https://graph.microsoft.com/v1.0/communications/callRecords/${meetingId}`, {
+            headers: {
+              'Authorization': `Bearer ${accessToken}`,
+              'Content-Type': 'application/json'
+            }
+          });
+
+          if (!callRecordRes.ok) {
+            console.error('Failed to fetch call record', await callRecordRes.text());
+            break;
           }
-        });
 
-        if (!callRecordRes.ok) {
-          console.error('Failed to fetch call record', await callRecordRes.text());
-          continue;
-        }
+          const callRecordData = await callRecordRes.json();
 
-        const callRecordData = await callRecordRes.json();
-
-        const transcriptUris: string[] = [];
-
-        if (callRecordData.sessions) {
-          for (const session of callRecordData.sessions) {
-            if (session.records) {
-              for (const record of session.records) {
-                if (record.recordingType === 'transcript' && record.contentUri) {
-                  transcriptUris.push(record.contentUri);
+          if (callRecordData.sessions) {
+            for (const session of callRecordData.sessions) {
+              if (session.records) {
+                for (const record of session.records) {
+                  if (record.recordingType === 'transcript' && record.contentUri) {
+                    transcriptUris.push(record.contentUri);
+                  }
                 }
               }
+            }
+          }
+
+          if (transcriptUris.length === 0) {
+            attempts++;
+            if (attempts < MAX_RETRIES) {
+              console.log(`Transcript not found. Retrying in ${RETRY_DELAY_MS / 1000} seconds... (Attempt ${attempts})`);
+              await delay(RETRY_DELAY_MS);
             }
           }
         }
 
         if (transcriptUris.length === 0) {
-          console.log('No transcripts found for meeting:', meetingId);
+          console.log('No transcripts found after retries for meeting:', meetingId);
           continue;
         }
 
-        // Fetch transcript content
         const transcriptContent = await fetch(transcriptUris[0], {
           headers: {
             'Authorization': `Bearer ${accessToken}`
@@ -74,7 +89,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
         const transcriptText = await transcriptContent.text();
 
-        // Upload transcript to Briefly
         await fetch('https://briefly-theta.vercel.app/api/uploadTranscript', {
           method: 'POST',
           headers: {
@@ -96,3 +110,4 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     res.status(405).send('Method not allowed');
   }
 }
+
