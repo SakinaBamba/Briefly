@@ -14,9 +14,16 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   try {
+    const { organizationId } = req.query;
+
+    if (!organizationId || typeof organizationId !== 'string') {
+      return res.status(400).json({ error: 'Missing or invalid organizationId' });
+    }
+
     const { data, error } = await supabase
       .from('clients')
       .select('id, client_name')
+      .eq('organization_id', organizationId)
       .order('created_at', { ascending: true });
 
     if (error) {
@@ -30,3 +37,4 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     res.status(500).json({ error: 'Internal server error', details: err.message });
   }
 }
+
