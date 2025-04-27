@@ -89,7 +89,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
         const transcriptText = await transcriptContent.text();
 
-        await fetch('https://briefly-theta.vercel.app/api/uploadTranscript', {
+        await fetch('https://rpcypbgyhlidifpqckgl.functions.supabase.co/uploadTranscript', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json'
@@ -110,4 +110,5 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     res.status(405).send('Method not allowed');
   }
 }
+
 
