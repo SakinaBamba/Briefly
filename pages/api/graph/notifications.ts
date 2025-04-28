@@ -8,16 +8,20 @@ const MAX_RETRIES = 3;
 const RETRY_DELAY_MS = 5000;
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  // 1) Validation handshake: Graph does a GET with ?validationToken=...
-  if (req.method === 'GET' && typeof req.query.validationToken === 'string') {
-    const token = req.query.validationToken as string;
-    // Must echo back the token as plain text
+  // 1) Handle subscription validation (GET or POST with validationToken)
+  const tokenFromQuery = typeof req.query.validationToken === 'string'
+    ? req.query.validationToken
+    : undefined;
+  const tokenFromBody = req.body?.validationToken;
+  const validationToken = tokenFromQuery || tokenFromBody;
+
+  if (validationToken) {
+    // Graph expects exactly the raw token, as plain text
     res.setHeader('Content-Type', 'text/plain');
-    res.status(200).send(token);
-    return;
+    return res.status(200).send(validationToken);
   }
 
-  // Only accept POST from here on
+  // 2) Only real notifications via POST
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
   }
@@ -26,66 +30,59 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const notifications = Array.isArray(req.body.value) ? req.body.value : [];
 
     for (const notification of notifications) {
-      // 2) Verify our clientState
+      // 3) Security check
       if (notification.clientState !== EXPECTED_CLIENT_STATE) {
-        console.warn('⚠️ Ignoring invalid clientState:', notification.clientState);
+        console.warn('Ignoring invalid clientState:', notification.clientState);
         continue;
       }
 
-      // 3) Extract meetingId from resource string
-      const resource: string = notification.resource; 
-      const meetingId = resource.split('/').pop();
-      if (!meetingId) {
-        console.warn('⚠️ Could not parse meetingId from resource:', resource);
-        continue;
-      }
+      // 4) Parse the meeting ID
+      const parts = (notification.resource as string).split('/');
+      const meetingId = parts[parts.length - 1];
+      if (!meetingId) continue;
 
-      // 4) Get an app-only Graph token
+      // 5) Get Graph token
       const token = await getAccessToken();
 
-      // 5) Fetch callRecord to locate transcript URL
-      let transcriptText = '';
-      for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+      // 6) Fetch callRecord & retry looking for transcript URL
+      let transcript = '';
+      for (let i = 0; i < MAX_RETRIES; i++) {
         const crRes = await fetch(
           `https://graph.microsoft.com/v1.0/communications/callRecords/${meetingId}`,
           { headers: { Authorization: `Bearer ${token}` } }
         );
         if (!crRes.ok) {
-          console.warn(`Attempt ${attempt}: callRecord fetch failed:`, await crRes.text());
           await new Promise(r => setTimeout(r, RETRY_DELAY_MS));
           continue;
         }
         const cr = await crRes.json();
-        const sessions = cr.sessions ?? [];
-        const records = sessions.flatMap((s: any) => s.records ?? []);
-        const tr = records.find((r: any) => r.contentType === 'transcript');
-        if (tr?.contentUrl) {
-          const tRes = await fetch(tr.contentUrl, {
+        const records = cr.sessions?.flatMap((s: any) => s.records ?? []) ?? [];
+        const rec = records.find((r: any) => r.contentType === 'transcript');
+        if (rec?.contentUrl) {
+          const tRes = await fetch(rec.contentUrl, {
             headers: { Authorization: `Bearer ${token}` }
           });
-          if (tRes.ok) transcriptText = await tRes.text();
-          else console.warn(`Attempt ${attempt}: transcript download failed`);
+          if (tRes.ok) transcript = await tRes.text();
           break;
         }
         await new Promise(r => setTimeout(r, RETRY_DELAY_MS));
       }
 
-      // 6) Upload into Supabase
+      // 7) Upload to Supabase
       await fetch(
         'https://rpcypbgyhlidifpqckgl.functions.supabase.co/uploadTranscript',
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ meetingId, transcript: transcriptText })
+          body: JSON.stringify({ meetingId, transcript })
         }
       );
     }
 
-    // 7) Tell Graph we processed it
-    res.status(200).json({ status: 'processed' });
+    return res.status(200).json({ status: 'processed' });
   } catch (err: any) {
-    console.error('🔥 notifications handler error:', err);
-    res.status(500).json({ error: err.message || 'Internal server error' });
+    console.error('notifications error:', err);
+    return res.status(500).json({ error: err.message || 'Internal server error' });
   }
 }
 
