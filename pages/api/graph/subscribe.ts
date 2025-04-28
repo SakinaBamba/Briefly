@@ -24,7 +24,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     // Build the notification URL
     const host = process.env.VERCEL_URL || 'briefly-theta.vercel.app';
-    const notificationUrl = `https://${host}/api/graph/notifications`;
+    const notificationUrl = `https://briefly-theta.vercel.app/api/graph/notifications`;
     console.log('🔔 Using notificationUrl:', notificationUrl);
 
     // Set expiration ~48 hours from now
