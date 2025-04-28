@@ -1,4 +1,4 @@
-// File: pages/api/graph/subscribe.ts
+// pages/api/graph/subscribe.ts
 
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { getAccessToken } from '../../../utils/auth';
@@ -9,24 +9,19 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   try {
-    // 1) Get an app-only token
     const token = await getAccessToken();
-
-    // 2) Build your notification URL
     const notificationUrl = 'https://briefly-theta.vercel.app/api/graph/notifications';
-
-    // 3) Set expiration to 1 hour from now (max without lifecycleNotificationUrl)
+    // 1 hour ahead
     const expirationDateTime = new Date(Date.now() + 60 * 60 * 1000).toISOString();
 
-    // 4) Create the subscription (using beta or v1 endpoint as appropriate)
-    const graphRes = await fetch('https://graph.microsoft.com/v1.0/subscriptions', {
+    const response = await fetch('https://graph.microsoft.com/beta/subscriptions', {
       method: 'POST',
       headers: {
-        Authorization: `Bearer ${token}`,
+        'Authorization': `Bearer ${token}`,
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
-        changeType: 'created,updated',
+        changeType: 'created',                         // ← only "created" allowed here
         notificationUrl,
         resource: '/communications/onlineMeetings/getAllTranscripts',
         expirationDateTime,
@@ -34,13 +29,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       })
     });
 
-    const data = await graphRes.json();
-    if (!graphRes.ok) {
+    const data = await response.json();
+    if (!response.ok) {
       console.error('Graph subscribe error:', data);
-      return res.status(graphRes.status).json({ error: 'Graph subscription failed', details: data });
+      return res.status(response.status).json({ error: 'Graph subscription failed', details: data });
     }
 
-    // 5) Return the subscription object
     return res.status(201).json(data);
   } catch (err: any) {
     console.error('Subscribe handler error:', err);
