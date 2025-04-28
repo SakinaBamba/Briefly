@@ -1,114 +1,101 @@
-// File: /pages/api/graph/notifications.ts
+// File: pages/api/graph/notifications.ts
 
-import { NextApiRequest, NextApiResponse } from 'next';
+import type { NextApiRequest, NextApiResponse } from 'next';
 import { getAccessToken } from '../../../utils/auth';
-
 
 const EXPECTED_CLIENT_STATE = 'secretClientValue12345';
 const MAX_RETRIES = 3;
 const RETRY_DELAY_MS = 5000;
 
-async function delay(ms: number) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  if (req.method === 'GET') {
-    const validationToken = req.query.validationToken as string;
-    if (validationToken) {
-      res.status(200).send(validationToken);
-    } else {
-      res.status(400).send('Missing validation token');
-    }
+  // 1) Handle subscription validation handshake
+  if (req.method === 'GET' && typeof req.query.validationToken === 'string') {
+    // Echo back the validationToken in plain text
+    res.status(200).send(req.query.validationToken);
     return;
   }
 
-  if (req.method === 'POST') {
-    try {
-      const notifications = req.body.value;
+  if (req.method !== 'POST') {
+    return res.status(405).json({ error: 'Method not allowed' });
+  }
 
-      for (const notification of notifications) {
-        if (notification.clientState !== EXPECTED_CLIENT_STATE) {
-          console.warn('ClientState mismatch. Skipping notification.');
+  try {
+    const notifications = Array.isArray(req.body.value) ? req.body.value : [];
+
+    for (const notification of notifications) {
+      // 2) Verify clientState
+      if (notification.clientState !== EXPECTED_CLIENT_STATE) {
+        console.warn('⚠️ Ignoring notification with invalid clientState:', notification.clientState);
+        continue;
+      }
+
+      // 3) Extract meetingId from resource
+      //    resource comes as "/communications/callRecords/{meetingId}"
+      const resource: string = notification.resource;
+      const meetingId = resource.split('/').pop();
+      if (!meetingId) {
+        console.warn('⚠️ Could not parse meetingId from resource:', resource);
+        continue;
+      }
+
+      // 4) Get an app-only token
+      const token = await getAccessToken();
+
+      // 5) Fetch the callRecord to find the transcript URL
+      let transcriptText = '';
+      for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+        const callRecRes = await fetch(
+          `https://graph.microsoft.com/v1.0/communications/callRecords/${meetingId}`,
+          {
+            headers: { Authorization: `Bearer ${token}` }
+          }
+        );
+        if (!callRecRes.ok) {
+          console.warn(`Attempt ${attempt}: Failed to fetch callRecord`, await callRecRes.text());
+          await new Promise(r => setTimeout(r, RETRY_DELAY_MS));
           continue;
         }
 
-        const resource = notification.resource;
-        const meetingId = resource.split('/').pop();
+        const callRecJson = await callRecRes.json();
+        const sessions = callRecJson.sessions ?? [];
+        const records = sessions.flatMap((s: any) => s.records ?? []);
+        const transcriptRecord = records.find((r: any) => r.contentType === 'transcript');
 
-        const accessToken = await getAccessToken();
-
-        let transcriptUris: string[] = [];
-        let attempts = 0;
-
-        while (attempts < MAX_RETRIES && transcriptUris.length === 0) {
-          const callRecordRes = await fetch(`https://graph.microsoft.com/v1.0/communications/callRecords/${meetingId}`, {
-            headers: {
-              'Authorization': `Bearer ${accessToken}`,
-              'Content-Type': 'application/json'
-            }
+        if (transcriptRecord?.contentUrl) {
+          const transcriptRes = await fetch(transcriptRecord.contentUrl, {
+            headers: { Authorization: `Bearer ${token}` }
           });
-
-          if (!callRecordRes.ok) {
-            console.error('Failed to fetch call record', await callRecordRes.text());
-            break;
+          if (transcriptRes.ok) {
+            transcriptText = await transcriptRes.text();
+          } else {
+            console.warn(`Attempt ${attempt}: Failed to download transcript`, await transcriptRes.text());
           }
-
-          const callRecordData = await callRecordRes.json();
-
-          if (callRecordData.sessions) {
-            for (const session of callRecordData.sessions) {
-              if (session.records) {
-                for (const record of session.records) {
-                  if (record.recordingType === 'transcript' && record.contentUri) {
-                    transcriptUris.push(record.contentUri);
-                  }
-                }
-              }
-            }
-          }
-
-          if (transcriptUris.length === 0) {
-            attempts++;
-            if (attempts < MAX_RETRIES) {
-              console.log(`Transcript not found. Retrying in ${RETRY_DELAY_MS / 1000} seconds... (Attempt ${attempts})`);
-              await delay(RETRY_DELAY_MS);
-            }
-          }
+          break;
         }
 
-        if (transcriptUris.length === 0) {
-          console.log('No transcripts found after retries for meeting:', meetingId);
-          continue;
-        }
+        // wait before retrying
+        await new Promise(r => setTimeout(r, RETRY_DELAY_MS));
+      }
 
-        const transcriptContent = await fetch(transcriptUris[0], {
-          headers: {
-            'Authorization': `Bearer ${accessToken}`
-          }
-        });
-
-        const transcriptText = await transcriptContent.text();
-
-        await fetch('https://rpcypbgyhlidifpqckgl.functions.supabase.co/uploadTranscript', {
+      // 6) Upload the transcript to Supabase
+      await fetch(
+        'https://rpcypbgyhlidifpqckgl.functions.supabase.co/uploadTranscript',
+        {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json'
-          },
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             meetingId,
             transcript: transcriptText
           })
-        });
-      }
-
-      res.status(202).send('Accepted');
-    } catch (error) {
-      console.error('Notification handling error', error);
-      res.status(500).send('Internal Server Error');
+        }
+      );
     }
-  } else {
-    res.status(405).send('Method not allowed');
+
+    // 7) Acknowledge receipt
+    return res.status(200).json({ status: 'processed' });
+  } catch (err: any) {
+    console.error('🔥 /api/graph/notifications error:', err);
+    return res.status(500).json({ error: err.message || 'Internal server error' });
   }
 }
 
