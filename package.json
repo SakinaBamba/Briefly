@@ -19,12 +19,14 @@
     "docx": "^8.0.3",
     "node-fetch": "^3.3.2",
     "mammoth": "^1.6.0",
-    "pdf-parse": "^1.1.1"
+    "pdf-parse": "^1.1.1",
+    "formidable": "^3.5.0"
   },
   "devDependencies": {
     "typescript": "^5.2.2",
     "@types/react": "^18.2.21",
     "@types/node": "^20.4.8",
+    "@types/formidable": "^3.4.3",
     "eslint": "8.50.0",
     "eslint-config-next": "13.5.11"
   }
