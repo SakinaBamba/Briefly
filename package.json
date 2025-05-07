@@ -15,7 +15,8 @@
     "@supabase/auth-helpers-react": "^0.4.2",
     "@supabase/auth-helpers-nextjs": "^0.4.2",
     "docx": "^8.0.3",
-    "node-fetch": "^3.3.2"
+    "node-fetch": "^3.3.2",
+    "mammoth": "^1.6.0"
   },
   "devDependencies": {
     "typescript": "^5.2.2",
@@ -25,4 +26,3 @@
     "eslint-config-next": "13.5.11"
   }
 }
-
