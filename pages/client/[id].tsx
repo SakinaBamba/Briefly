@@ -2,7 +2,8 @@
 
 import { useRouter } from 'next/router'
 import { useEffect, useState } from 'react'
-import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
+import { createBrowserSupabaseClient } from '@supabase/auth-helpers-react';
+
 
 export default function ClientPage() {
   const router = useRouter()
