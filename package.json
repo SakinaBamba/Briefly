@@ -17,7 +17,6 @@
     "typescript": "^5.2.2",
     "@types/react": "^18.2.21",
     "@types/node": "^20.4.8",
-    "@types/microsoft__teams-js": "^1.4.3",
     "eslint": "8.50.0",
     "eslint-config-next": "13.5.11"
   }
