@@ -1,19 +1,32 @@
-import { createPagesServerClient } from '@supabase/auth-helpers-nextjs';
+// pages/auth/callback.tsx
+
 import { GetServerSidePropsContext } from 'next';
-import { redirect } from 'next/navigation';
-
-
-export default function Callback() {
-  redirect('/dashboard'); // fallback redirect (if needed)
-  return null;
-}
+import { createServerSupabaseClient } from '@supabase/auth-helpers-nextjs';
 
 export async function getServerSideProps(ctx: GetServerSidePropsContext) {
-  const supabase = createPagesServerClient(ctx);
+  const supabase = createServerSupabaseClient(ctx);
 
-  await supabase.auth.getUser(); // Finalizes session
+  const {
+    data: { session },
+  } = await supabase.auth.getSession();
+
+  if (!session) {
+    return {
+      redirect: {
+        destination: '/login',
+        permanent: false,
+      },
+    };
+  }
 
   return {
-    props: {},
+    redirect: {
+      destination: '/',
+      permanent: false,
+    },
   };
+}
+
+export default function Callback() {
+  return null;
 }
