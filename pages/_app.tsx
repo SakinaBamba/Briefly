@@ -1,17 +1,15 @@
+// pages/_app.tsx
 import { useState } from 'react';
-import { SessionContextProvider } from '@supabase/auth-helpers-react';
-import { createBrowserSupabaseClient } from '@supabase/auth-helpers-nextjs';
+import { createBrowserClient } from '@supabase/ssr';
+import type { AppProps } from 'next/app';
 
-
-export default function App({ Component, pageProps }) {
-  const [supabaseClient] = useState(() => createBrowserSupabaseClient());
-
-  return (
-    <SessionContextProvider
-      supabaseClient={supabaseClient}
-      initialSession={pageProps.initialSession}
-    >
-      <Component {...pageProps} />
-    </SessionContextProvider>
+export default function App({ Component, pageProps }: AppProps) {
+  const [supabaseClient] = useState(() =>
+    createBrowserClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+    )
   );
+
+  return <Component {...pageProps} />;
 }
