@@ -2,8 +2,8 @@
 'use client'
 
 import { useState } from 'react'
-import { useRouter } from 'next/router'      // <-- pages router
-import { createClientComponentClient } from '@supabase/auth-helpers-react'
+import { useRouter } from 'next/router'
+import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
 
 export default function LoginPage() {
   const supabase = createClientComponentClient()
@@ -18,16 +18,15 @@ export default function LoginPage() {
     setLoading(true)
     setError(null)
 
-    const { error: signInError, data } = await supabase.auth.signInWithPassword({
+    const { data, error: signInError } = await supabase.auth.signInWithPassword({
       email,
-      password
+      password,
     })
     setLoading(false)
 
     if (signInError) {
       setError(signInError.message)
     } else if (data && data.session) {
-      // Redirect to the dashboard page
       router.push('/dashboard')
     }
   }
@@ -42,7 +41,7 @@ export default function LoginPage() {
           placeholder="Email"
           className="w-full p-2 border rounded"
           value={email}
-          onChange={e => setEmail(e.target.value)}
+          onChange={(e) => setEmail(e.target.value)}
           required
         />
         <input
@@ -50,7 +49,7 @@ export default function LoginPage() {
           placeholder="Password"
           className="w-full p-2 border rounded"
           value={password}
-          onChange={e => setPassword(e.target.value)}
+          onChange={(e) => setPassword(e.target.value)}
           required
         />
         <button
