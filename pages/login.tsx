@@ -8,6 +8,8 @@ import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
 export default function LoginPage() {
   const supabase = createClientComponentClient()
   const router = useRouter()
+
+  const [mode, setMode] = useState<'sign-in' | 'sign-up'>('sign-in')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState<string | null>(null)
@@ -18,30 +20,43 @@ export default function LoginPage() {
     setLoading(true)
     setError(null)
 
-    const { data, error: signInError } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    })
-    setLoading(false)
+    try {
+      let result
+      if (mode === 'sign-in') {
+        result = await supabase.auth.signInWithPassword({ email, password })
+      } else {
+        result = await supabase.auth.signUp({ email, password })
+      }
 
-    if (signInError) {
-      setError(signInError.message)
-    } else if (data && data.session) {
-      router.push('/dashboard')
+      setLoading(false)
+      if (result.error) {
+        setError(result.error.message)
+      } else {
+        // On sign-up, Supabase may require email confirmation. 
+        // We’ll treat it like a successful auth and redirect.
+        router.push('/dashboard')
+      }
+    } catch (err: any) {
+      setLoading(false)
+      setError(err.message ?? 'Unexpected error')
     }
   }
 
   return (
     <main className="p-6 max-w-md mx-auto">
-      <h1 className="text-2xl font-bold mb-4">Sign In to Briefly</h1>
+      <h1 className="text-2xl font-bold mb-4">
+        {mode === 'sign-in' ? 'Sign In to Briefly' : 'Create a Briefly Account'}
+      </h1>
+
       {error && <p className="text-red-500 mb-2">{error}</p>}
+
       <form onSubmit={handleSubmit} className="space-y-4">
         <input
           type="email"
           placeholder="Email"
           className="w-full p-2 border rounded"
           value={email}
-          onChange={(e) => setEmail(e.target.value)}
+          onChange={e => setEmail(e.target.value)}
           required
         />
         <input
@@ -49,7 +64,7 @@ export default function LoginPage() {
           placeholder="Password"
           className="w-full p-2 border rounded"
           value={password}
-          onChange={(e) => setPassword(e.target.value)}
+          onChange={e => setPassword(e.target.value)}
           required
         />
         <button
@@ -57,9 +72,31 @@ export default function LoginPage() {
           disabled={loading}
           className="w-full py-2 bg-blue-600 text-white rounded disabled:opacity-50"
         >
-          {loading ? 'Signing in…' : 'Sign In'}
+          {loading
+            ? mode === 'sign-in'
+              ? 'Signing in…'
+              : 'Signing up…'
+            : mode === 'sign-in'
+            ? 'Sign In'
+            : 'Sign Up'}
         </button>
       </form>
+
+      <p className="mt-4 text-center text-sm">
+        {mode === 'sign-in'
+          ? "Don't have an account?"
+          : 'Already have an account?'}{' '}
+        <button
+          onClick={() => {
+            setMode(mode === 'sign-in' ? 'sign-up' : 'sign-in')
+            setError(null)
+          }}
+          className="text-blue-600 underline"
+        >
+          {mode === 'sign-in' ? 'Create one' : 'Sign in'}
+        </button>
+      </p>
     </main>
   )
 }
+
