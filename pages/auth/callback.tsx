@@ -1,11 +1,13 @@
 // pages/auth/callback.tsx
-
 import { GetServerSidePropsContext } from 'next';
 import { createServerClient } from '@supabase/ssr';
 
-
 export async function getServerSideProps(ctx: GetServerSidePropsContext) {
-  const supabase = createServerSupabaseClient(ctx);
+  const supabase = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    { cookies: ctx.req.cookies }
+  );
 
   const {
     data: { session },
@@ -14,7 +16,7 @@ export async function getServerSideProps(ctx: GetServerSidePropsContext) {
   if (!session) {
     return {
       redirect: {
-        destination: '/login',
+        destination: '/',
         permanent: false,
       },
     };
@@ -22,12 +24,13 @@ export async function getServerSideProps(ctx: GetServerSidePropsContext) {
 
   return {
     redirect: {
-      destination: '/',
+      destination: '/dashboard',
       permanent: false,
     },
   };
 }
 
-export default function Callback() {
+export default function AuthCallbackPage() {
   return null;
 }
+
