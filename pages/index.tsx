@@ -1,7 +1,7 @@
 // File: pages/index.tsx
 
 import { useEffect, useState } from 'react'
-import { createServerSupabaseClient } from '@supabase/ssr'
+import { createServerClient } from '@supabase/ssr'
 import { GetServerSideProps } from 'next'
 import { useRouter } from 'next/router'
 
@@ -18,14 +18,13 @@ interface Client {
 }
 
 export const getServerSideProps: GetServerSideProps = async (context) => {
-  const supabase = createServerSupabaseClient({
-    req: context.req,
-    res: context.res,
-  })
+  // Initialize Supabase with the incoming request & response
+  const supabase = createServerClient({ req: context.req, res: context.res })
   const {
     data: { session },
   } = await supabase.auth.getSession()
 
+  // Redirect to /login if not authenticated
   if (!session) {
     return {
       redirect: {
@@ -36,7 +35,7 @@ export const getServerSideProps: GetServerSideProps = async (context) => {
   }
 
   return {
-    props: {}, // you can also fetch initial data here if you like
+    props: {}, // no additional props needed
   }
 }
 
@@ -55,15 +54,15 @@ export default function HomePage() {
 
   const fetchMeetings = async () => {
     const res = await fetch('/api/getMeetings')
-    const data = await res.json()
-    setMeetings(data.meetings)
+    const { meetings } = await res.json()
+    setMeetings(meetings)
     setLoading(false)
   }
 
   const fetchClients = async () => {
     const res = await fetch('/api/getClients')
-    const data = await res.json()
-    setClients(data.clients)
+    const { clients } = await res.json()
+    setClients(clients)
   }
 
   const handleLogout = async () => {
