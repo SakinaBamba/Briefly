@@ -3,7 +3,7 @@ import * as microsoftTeams from '@microsoft/teams-js';
 import { createBrowserClient } from '@supabase/ssr';
 
 
-export const supabase = createBrowserSupabaseClient();
+export const supabase = createBrowserClient();
 
 
 
