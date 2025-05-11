@@ -1,19 +1,16 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  // Prevent Next.js from issuing 307 redirects for trailing slashes
-  trailingSlash: false,
-
+  // Keep your env-vars
   env: {
     NEXT_PUBLIC_SUPABASE_URL: process.env.NEXT_PUBLIC_SUPABASE_URL,
     NEXT_PUBLIC_SUPABASE_ANON_KEY: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
   },
-
+  // Explicitly rewrite the slash variant to the no-slash route
   async rewrites() {
     return [
       {
-        // Graph is calling the slash version, so catch it and rewrite
-        source: '/api/graph/notifications/',
-        destination: '/api/graph/notifications',
+        source: '/api/graph/notifications/',    // Graph is hitting this
+        destination: '/api/graph/notifications' // Our real handler
       },
     ]
   },
