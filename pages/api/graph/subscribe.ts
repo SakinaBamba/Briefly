@@ -5,7 +5,6 @@ import { ConfidentialClientApplication } from '@azure/msal-node';
 import { Client } from '@microsoft/microsoft-graph-client';
 import 'isomorphic-fetch';
 
-
 const msalConfig = {
   auth: {
     clientId: process.env.AZURE_CLIENT_ID!,
@@ -21,7 +20,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   try {
-    // Acquire app-only token
+    // Acquire an app-only token
     const cca = new ConfidentialClientApplication(msalConfig);
     const tokenResponse = await cca.acquireTokenByClientCredential({
       scopes: ['https://graph.microsoft.com/.default']
@@ -31,13 +30,14 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
 
     const graph = Client.init({
-      authProvider: (done) => done(null, tokenResponse.accessToken)
+      authProvider: (done) => done(null, tokenResponse.accessToken!)
     });
 
-    // Create or renew subscription
-    const result = await graph.api('/subscriptions').post({
+-   const result = await graph.api('/subscriptions').post({ 
++   const result = await graph.api('/subscriptions').post({ 
       changeType: 'created',
-      notificationUrl: `${process.env.NEXT_PUBLIC_SUPABASE_URL}/api/graph/notifications`,
+-     notificationUrl: `${process.env.NEXT_PUBLIC_SUPABASE_URL}/api/graph/notifications`,
++     notificationUrl: `${process.env.NEXT_PUBLIC_APP_URL}/api/graph/notifications`,
       resource: '/communications/callRecords',
       expirationDateTime: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(), // 24h
       clientState: 'briefly-secret'
