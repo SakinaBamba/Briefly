@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import * as microsoftTeams from '@microsoft/teams-js';
-import { createBrowserSupabaseClient } from '@supabase/ssr';
+import { createBrowserClient } from '@supabase/ssr';
 
 
 export const supabase = createBrowserSupabaseClient();
