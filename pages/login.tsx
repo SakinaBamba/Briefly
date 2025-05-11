@@ -1,8 +1,10 @@
+// File: pages/login.tsx
+
 'use client'
 
 import { useState } from 'react'
 import { useRouter } from 'next/router'
-import { createClientComponentClient } from '@supabase/ssr'
+import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
 
 export default function LoginPage() {
   const supabase = createClientComponentClient()
@@ -23,7 +25,7 @@ export default function LoginPage() {
 
   return (
     <main className="p-6 max-w-md mx-auto">
-      <h1 className="text-2xl font-bold mb-4">Sign In</h1>
+      <h1 className="text-2xl font-bold mb-4">Sign In to Briefly</h1>
       {error && <p className="text-red-500 mb-2">{error}</p>}
       <form onSubmit={handleSubmit} className="space-y-4">
         <input
@@ -52,3 +54,4 @@ export default function LoginPage() {
     </main>
   )
 }
+
