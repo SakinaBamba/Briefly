@@ -1,5 +1,9 @@
 import { useEffect } from 'react';
 import * as microsoftTeams from '@microsoft/teams-js';
+import { createBrowserSupabaseClient } from '@supabase/auth-helpers-react';
+
+export const supabase = createBrowserSupabaseClient();
+
 
 
 export default function StartTranscription() {
