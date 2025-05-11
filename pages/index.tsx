@@ -1,8 +1,8 @@
 // File: pages/index.tsx
 
 import { useEffect, useState } from 'react'
-import { createServerClient } from '@supabase/ssr'
-import { GetServerSideProps } from 'next'
+import { createPagesServerClient } from '@supabase/auth-helpers-nextjs'
+import type { GetServerSideProps } from 'next'
 import { useRouter } from 'next/router'
 
 interface Meeting {
@@ -17,14 +17,9 @@ interface Client {
   client_name: string
 }
 
-export const getServerSideProps: GetServerSideProps = async (context) => {
-  // Pass your Supabase URL and anon key, then the Next.js req/res
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    { req: context.req, res: context.res }
-  )
-
+export const getServerSideProps: GetServerSideProps = async (ctx) => {
+  // Initialize Supabase with the full Next.js context (handles cookies for you)
+  const supabase = createPagesServerClient(ctx)
   const {
     data: { session },
   } = await supabase.auth.getSession()
@@ -51,14 +46,14 @@ export default function HomePage() {
 
   useEffect(() => {
     fetch('/api/getMeetings')
-      .then(res => res.json())
-      .then(data => {
+      .then((res) => res.json())
+      .then((data) => {
         setMeetings(data.meetings)
         setLoading(false)
       })
     fetch('/api/getClients')
-      .then(res => res.json())
-      .then(data => setClients(data.clients))
+      .then((res) => res.json())
+      .then((data) => setClients(data.clients))
   }, [])
 
   const handleLogout = async () => {
@@ -110,11 +105,86 @@ export default function HomePage() {
       {assignMeetingId && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center">
           <div className="bg-white p-6 rounded-lg w-96">
-            {/* ...Assign dialog unchanged... */}
+            <h2 className="text-xl font-bold mb-4">Assign Meeting</h2>
+            <select
+              className="w-full p-2 border mb-4"
+              value={selectedClientId || ''}
+              onChange={(e) => setSelectedClientId(e.target.value)}
+            >
+              <option value="">Select a client</option>
+              {clients.map((client) => (
+                <option key={client.id} value={client.id}>
+                  {client.client_name}
+                </option>
+              ))}
+            </select>
+            <input
+              type="text"
+              placeholder="New client name..."
+              className="w-full p-2 border mb-2"
+              onChange={(e) => setSelectedClientId('new:' + e.target.value)}
+            />
+            <div className="flex justify-end space-x-2">
+              <button
+                className="px-4 py-2 bg-gray-400 text-white rounded"
+                onClick={() => {
+                  setAssignMeetingId(null)
+                  setSelectedClientId(null)
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                className="px-4 py-2 bg-blue-600 text-white rounded"
+                onClick={async () => {
+                  if (!assignMeetingId || !selectedClientId) return
+                  if (selectedClientId.startsWith('new:')) {
+                    const clientName = selectedClientId.slice(4)
+                    const res = await fetch('/api/createClient', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({
+                        userId: 'CURRENT_USER_ID_HERE',
+                        clientName,
+                      }),
+                    })
+                    const { client } = await res.json()
+                    await fetch('/api/assignMeetingToClient', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({
+                        meetingId: assignMeetingId,
+                        clientId: client.id,
+                      }),
+                    })
+                  } else {
+                    await fetch('/api/assignMeetingToClient', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({
+                        meetingId: assignMeetingId,
+                        clientId: selectedClientId,
+                      }),
+                    })
+                  }
+                  setAssignMeetingId(null)
+                  setSelectedClientId(null)
+                  // Refresh data
+                  const mRes = await fetch('/api/getMeetings')
+                  setMeetings((await mRes.json()).meetings)
+                  const cRes = await fetch('/api/getClients')
+                  setClients((await cRes.json()).clients)
+                }}
+                disabled={!selectedClientId}
+              >
+                Assign
+              </button>
+            </div>
           </div>
         </div>
       )}
     </div>
   )
 }
+
 
