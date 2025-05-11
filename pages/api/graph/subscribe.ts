@@ -5,6 +5,7 @@ import { ConfidentialClientApplication } from '@azure/msal-node';
 import { Client } from '@microsoft/microsoft-graph-client';
 import 'isomorphic-fetch';
 
+
 const msalConfig = {
   auth: {
     clientId: process.env.AZURE_CLIENT_ID!,
