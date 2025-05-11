@@ -1,12 +1,16 @@
 'use client'
-import { useRouter } from 'next/router';
-import { useEffect, useState } from 'react';
-import { useSupabaseClient } from '@supabase/auth-helpers-react';
+
+import { useRouter } from 'next/router'
+import { useEffect, useState } from 'react'
+import { createBrowserClient } from '@supabase/ssr'
+
+const supabase = createBrowserClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+)
 
 export default function ClientPage() {
-  const supabase = useSupabaseClient();
-  const router = useRouter();
-
+  const router = useRouter()
   const { id: clientId } = router.query
 
   const [client, setClient] = useState<any>(null)
@@ -216,5 +220,4 @@ export default function ClientPage() {
     </div>
   )
 }
-
 
