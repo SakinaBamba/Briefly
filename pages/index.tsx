@@ -1,8 +1,8 @@
 // File: pages/index.tsx
 
+import { GetServerSideProps } from 'next'
+import { parse } from 'cookie'
 import { useEffect, useState } from 'react'
-import { createPagesServerClient } from '@supabase/auth-helpers-nextjs'
-import type { GetServerSideProps } from 'next'
 import { useRouter } from 'next/router'
 
 interface Meeting {
@@ -17,14 +17,13 @@ interface Client {
   client_name: string
 }
 
-export const getServerSideProps: GetServerSideProps = async (ctx) => {
-  // Initialize Supabase with the full Next.js context (handles cookies for you)
-  const supabase = createPagesServerClient(ctx)
-  const {
-    data: { session },
-  } = await supabase.auth.getSession()
+export const getServerSideProps: GetServerSideProps = async ({ req }) => {
+  // Parse cookies from the incoming request
+  const cookies = req.headers.cookie
+  const parsed = cookies ? parse(cookies) : {}
 
-  if (!session) {
+  // Supabase stores the JWT in sb-access-token
+  if (!parsed['sb-access-token']) {
     return {
       redirect: {
         destination: '/login',
@@ -33,6 +32,7 @@ export const getServerSideProps: GetServerSideProps = async (ctx) => {
     }
   }
 
+  // Session cookie exists → allow render
   return { props: {} }
 }
 
@@ -57,6 +57,7 @@ export default function HomePage() {
   }, [])
 
   const handleLogout = async () => {
+    // Clear Supabase cookies by hitting your logout endpoint
     await fetch('/api/auth/logout', { method: 'POST' })
     router.push('/login')
   }
