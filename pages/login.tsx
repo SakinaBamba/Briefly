@@ -1,17 +1,12 @@
 // File: pages/login.tsx
 'use client'
 
-
 import { useState } from 'react'
-import { useRouter } from 'next/router'
-import { createClient } from '@supabase/supabase-js'
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-)
+import { useRouter } from 'next/router'      // <-- pages router
+import { createClientComponentClient } from '@supabase/auth-helpers-react'
 
 export default function LoginPage() {
+  const supabase = createClientComponentClient()
   const router = useRouter()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -23,13 +18,17 @@ export default function LoginPage() {
     setLoading(true)
     setError(null)
 
-    const { data, error } = await supabase.auth.signInWithPassword({ email, password })
+    const { error: signInError, data } = await supabase.auth.signInWithPassword({
+      email,
+      password
+    })
     setLoading(false)
 
-    if (error) {
-      setError(error.message)
-    } else if (data.session) {
-      router.push('/')
+    if (signInError) {
+      setError(signInError.message)
+    } else if (data && data.session) {
+      // Redirect to the dashboard page
+      router.push('/dashboard')
     }
   }
 
@@ -65,4 +64,3 @@ export default function LoginPage() {
     </main>
   )
 }
-
