@@ -7,6 +7,7 @@ import fetch from 'node-fetch';
 import mammoth from 'mammoth';
 import pdfParse from 'pdf-parse';
 
+
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
