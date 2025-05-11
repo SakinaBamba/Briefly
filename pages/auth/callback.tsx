@@ -1,7 +1,8 @@
 // pages/auth/callback.tsx
 
 import { GetServerSidePropsContext } from 'next';
-import { createServerSupabaseClient } from '@supabase/auth-helpers-nextjs';
+import { createServerClient } from '@supabase/ssr';
+
 
 export async function getServerSideProps(ctx: GetServerSidePropsContext) {
   const supabase = createServerSupabaseClient(ctx);
