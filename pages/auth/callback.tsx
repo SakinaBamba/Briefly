@@ -1,6 +1,7 @@
 import { GetServerSidePropsContext } from 'next';
 import { createServerClient } from '@supabase/ssr';
 
+
 export async function getServerSideProps(ctx: GetServerSidePropsContext) {
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
