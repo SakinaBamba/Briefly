@@ -16,10 +16,9 @@
     "@supabase/supabase-js": "^2.39.3",
     "@supabase/ssr": "^0.6.1",
     "@supabase/auth-helpers-nextjs": "0.10.0",
+    "@supabase/auth-helpers-react": "0.5.0",
     "docx": "^8.0.3",
     "node-fetch": "^3.3.2",
-    "@supabase/auth-helpers-react": "0.5.0",
-    "@supabase/auth-helpers-nextjs": "0.10.0",
     "mammoth": "^1.6.0",
     "pdf-parse": "^1.1.1",
     "formidable": "^3.5.0",
@@ -35,6 +34,5 @@
     "eslint-config-next": "13.5.11"
   }
 }
-
 
 
