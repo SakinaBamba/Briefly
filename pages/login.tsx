@@ -29,11 +29,17 @@ export default function LoginPage() {
       }
 
       setLoading(false)
+
       if (result.error) {
-        setError(result.error.message)
+        // Check for "user already registered" on sign-up
+        if (mode === 'sign-up' && /already registered|already exists/i.test(result.error.message)) {
+          alert('An account with that email already exists. Please sign in instead.')
+          setMode('sign-in')
+        } else {
+          setError(result.error.message)
+        }
       } else {
-        // On sign-up, Supabase may require email confirmation. 
-        // We’ll treat it like a successful auth and redirect.
+        // On successful sign-in or sign-up
         router.push('/dashboard')
       }
     } catch (err: any) {
@@ -56,7 +62,7 @@ export default function LoginPage() {
           placeholder="Email"
           className="w-full p-2 border rounded"
           value={email}
-          onChange={e => setEmail(e.target.value)}
+          onChange={(e) => setEmail(e.target.value)}
           required
         />
         <input
@@ -64,7 +70,7 @@ export default function LoginPage() {
           placeholder="Password"
           className="w-full p-2 border rounded"
           value={password}
-          onChange={e => setPassword(e.target.value)}
+          onChange={(e) => setPassword(e.target.value)}
           required
         />
         <button
