@@ -20,7 +20,6 @@ const msalConfig = {
   }
 }
 
-// This must match what your notifications handler checks
 const CLIENT_STATE = 'briefly-secret'
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
@@ -44,13 +43,14 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       authProvider: (done) => done(null, tokenResponse.accessToken!)
     })
 
-    // 3) Compute an expiration within 72h
-    const expires = new Date(Date.now() + 24 * 3600 * 1000)
+    // 3) Compute an expiration no more than 72h from now
+    const expires = new Date(Date.now() + 24 * 3600 * 1000) // 24h for testing
     const expirationDateTime = expires.toISOString().replace(/\.\d{3}Z$/, 'Z')
 
-    // 4) Create the subscription via the beta endpoint
+    // 4) Create the subscription via Beta
     const result = await graph
-      .api('/beta/subscriptions')
+      .api('/subscriptions')           // call v1 path...
+      .version('beta')                 // ...but in Beta
       .post({
         changeType: 'created',
         notificationUrl: `${NEXT_PUBLIC_APP_URL}/api/graph/notifications`,
@@ -65,7 +65,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     })
   } catch (error: any) {
     console.error('Subscription error:', error)
-    return res.status(500).json({ error: error.message })
+    return res.status(500).json({ error: error.message, details: error })
   }
 }
-
