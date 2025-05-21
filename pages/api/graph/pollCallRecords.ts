@@ -14,7 +14,7 @@ const {
   SUPABASE_SERVICE_ROLE_KEY
 } = process.env
 
-// In‐memory last‐poll (resets on cold start)
+// In‐memory last‐poll timestamp; resets on cold starts
 let lastPoll = new Date(Date.now() - 60 * 60 * 1000).toISOString()
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
@@ -44,17 +44,16 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       authProvider: done => done(null, tokenResp.accessToken!)
     })
 
-    // 3) Fetch callRecords updated since lastPoll
-    //    Note: no $top or disallowed options
-    const query = `/communications/callRecords?$filter=lastModifiedDateTime ge ${lastPoll}`
+    // 3) Use SDK filter helper to get records since lastPoll
     const response = await graph
-      .api(query)
+      .api('/communications/callRecords')
       .version('beta')
+      .filter(`lastModifiedDateTime ge ${lastPoll}`)
       .get()
 
     const records = Array.isArray(response.value) ? response.value : []
 
-    // 4) Process each record
+    // 4) Forward each transcript into your summarizer
     for (const rec of records) {
       const id = rec.id
       try {
@@ -72,16 +71,16 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           body: JSON.stringify({ meetingId: id, transcript: transcripts })
         })
       } catch (innerErr) {
-        console.error(`Failed to process callRecord ${id}:`, innerErr)
+        console.error(`Failed processing record ${id}:`, innerErr)
       }
     }
 
-    // 5) Advance lastPoll
+    // 5) Update lastPoll to now
     lastPoll = new Date().toISOString()
 
     return res.status(200).json({ polled: records.length })
   } catch (err: any) {
-    console.error('🔥 pollCallRecords error:', err)
+    console.error('🔥 pollCallRecords handler error:', err)
     return res.status(500).json({
       error: err.message,
       stack: err.stack?.split('\n').slice(0, 5)
