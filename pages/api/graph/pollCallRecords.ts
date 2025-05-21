@@ -12,7 +12,7 @@ const {
   SUPABASE_SERVICE_ROLE_KEY
 } = process.env
 
-// Seed far in the past so we pull everything on first test run:
+// Seed far in the past so we grab everything on first run
 let lastPoll = '2000-01-01T00:00:00Z'
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
@@ -22,7 +22,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return res.status(405).json({ error: 'Method not allowed' })
     }
 
-    // 1) Get an app-only token
+    // 1) Acquire app-only token
     const cca = new ConfidentialClientApplication({
       auth: {
         authority: `https://login.microsoftonline.com/${AZURE_TENANT_ID}`,
@@ -37,33 +37,35 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       throw new Error('Could not get Graph token')
     }
 
-    // 2) Init the Graph client
+    // 2) Initialize Graph client
     const graph = Client.init({
       authProvider: done => done(null, tokenResp.accessToken!)
     })
 
-    // 3) List all callRecords
+    // 3) List all callRecords (first page)
     const resp: any = await graph
       .api('/communications/callRecords')
       .version('beta')
       .get()
-    const records = Array.isArray(resp.value) ? resp.value : []
 
-    // ==== QUICK FIX FOR TESTING: only process the first record ====
+    const records = Array.isArray(resp.value) ? resp.value : []
+    console.log(`❗️ Raw callRecords count: ${records.length}`)
+
+    // 4) For testing, only process the first record
     const toProcess = records.slice(0, 1)
     let processed = 0
 
     for (const rec of toProcess) {
       const id = rec.id
       try {
-        // 4a) Fetch sessions
+        // fetch sessions
         const sessResp: any = await graph
           .api(`/communications/callRecords/${id}/sessions`)
           .version('beta')
           .get()
         const sessions = Array.isArray(sessResp.value) ? sessResp.value : []
 
-        // 4b) Fetch segments for each session
+        // fetch segments
         const segments: any[] = []
         for (const s of sessions) {
           const segResp: any = await graph
@@ -73,7 +75,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           if (Array.isArray(segResp.value)) segments.push(...segResp.value)
         }
 
-        // 4c) Upload to your Supabase Edge Function
+        // upload to Supabase Edge Function
         await fetch(
           `https://rpcypbgyhlidifpqckgl.functions.supabase.co/uploadTranscript`,
           {
@@ -95,8 +97,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       }
     }
 
-    // 5) Return how many we processed
-    return res.status(200).json({ polled: processed })
+    // 5) Respond with both rawCount and processed count
+    return res.status(200).json({
+      rawCount: records.length,
+      polled: processed
+    })
   } catch (err: any) {
     console.error('pollCallRecords error:', err)
     return res.status(500).json({ error: err.message })
