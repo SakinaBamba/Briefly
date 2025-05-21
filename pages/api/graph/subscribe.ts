@@ -2,23 +2,14 @@
 
 import type { NextApiRequest, NextApiResponse } from 'next'
 import { ConfidentialClientApplication } from '@azure/msal-node'
-import { Client } from '@microsoft/microsoft-graph-client'
 import 'isomorphic-fetch'
 
 const {
   AZURE_TENANT_ID,
   AZURE_CLIENT_ID,
   AZURE_CLIENT_SECRET,
-  NEXT_PUBLIC_APP_URL
+  NEXT_PUBLIC_APP_URL  // e.g. https://briefly-theta.vercel.app
 } = process.env
-
-const msalConfig = {
-  auth: {
-    authority: `https://login.microsoftonline.com/${AZURE_TENANT_ID}`,
-    clientId: AZURE_CLIENT_ID!,
-    clientSecret: AZURE_CLIENT_SECRET!
-  }
-}
 
 const CLIENT_STATE = 'briefly-secret'
 
@@ -29,42 +20,55 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   try {
-    // 1) Acquire an app-only token
-    const cca = new ConfidentialClientApplication(msalConfig)
-    const tokenResponse = await cca.acquireTokenByClientCredential({
+    // 1) Get an app-only token
+    const cca = new ConfidentialClientApplication({
+      auth: {
+        authority: `https://login.microsoftonline.com/${AZURE_TENANT_ID}`,
+        clientId: AZURE_CLIENT_ID!,
+        clientSecret: AZURE_CLIENT_SECRET!
+      }
+    })
+    const tokenResp = await cca.acquireTokenByClientCredential({
       scopes: ['https://graph.microsoft.com/.default']
     })
-    if (!tokenResponse?.accessToken) {
+    if (!tokenResp?.accessToken) {
       throw new Error('Failed to acquire Graph token')
     }
 
-    // 2) Initialize Graph client
-    const graph = Client.init({
-      authProvider: (done) => done(null, tokenResponse.accessToken!)
-    })
-
-    // 3) Compute an expiration no more than 72h from now
-    const expires = new Date(Date.now() + 24 * 3600 * 1000) // 24h for testing
+    // 2) Compute a UTC expiration ≤72h out
+    const expires = new Date(Date.now() + 24 * 60 * 60 * 1000) // 24h for testing
     const expirationDateTime = expires.toISOString().replace(/\.\d{3}Z$/, 'Z')
 
-    // 4) Create the subscription via Beta
-    const result = await graph
-      .api('/subscriptions')           // call v1 path...
-      .version('beta')                 // ...but in Beta
-      .post({
-        changeType: 'created',
+    // 3) POST directly to the Beta subscriptions endpoint
+    const response = await fetch('https://graph.microsoft.com/beta/subscriptions', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${tokenResp.accessToken}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        changeType: 'created',  // or "created,updated" if you want updates too
         notificationUrl: `${NEXT_PUBLIC_APP_URL}/api/graph/notifications`,
         resource: '/communications/callRecords',
         expirationDateTime,
         clientState: CLIENT_STATE
       })
-
-    return res.status(200).json({
-      subscriptionId: result.id,
-      expires: result.expirationDateTime
     })
-  } catch (error: any) {
-    console.error('Subscription error:', error)
-    return res.status(500).json({ error: error.message, details: error })
+
+    const body = await response.json()
+    if (!response.ok) {
+      console.error('Subscription creation failed:', body)
+      return res.status(response.status).json({ error: body })
+    }
+
+    // Success
+    return res.status(200).json({
+      subscriptionId: body.id,
+      expires: body.expirationDateTime
+    })
+
+  } catch (err: any) {
+    console.error('Subscribe handler error:', err)
+    return res.status(500).json({ error: err.message })
   }
 }
