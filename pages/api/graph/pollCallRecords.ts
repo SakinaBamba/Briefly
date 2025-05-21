@@ -12,7 +12,7 @@ const {
   SUPABASE_SERVICE_ROLE_KEY
 } = process.env
 
-// ALWAYS pull everything by seeding far in the past:
+// Seed far in the past so we pull everything on first test run:
 let lastPoll = '2000-01-01T00:00:00Z'
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
@@ -22,7 +22,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return res.status(405).json({ error: 'Method not allowed' })
     }
 
-    // 1) Acquire app-only token
+    // 1) Get an app-only token
     const cca = new ConfidentialClientApplication({
       auth: {
         authority: `https://login.microsoftonline.com/${AZURE_TENANT_ID}`,
@@ -37,42 +37,43 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       throw new Error('Could not get Graph token')
     }
 
-    // 2) Init Graph client
+    // 2) Init the Graph client
     const graph = Client.init({
       authProvider: done => done(null, tokenResp.accessToken!)
     })
 
-    // 3) List all callRecords (first page)
+    // 3) List all callRecords
     const resp: any = await graph
       .api('/communications/callRecords')
       .version('beta')
       .get()
-
     const records = Array.isArray(resp.value) ? resp.value : []
+
+    // ==== QUICK FIX FOR TESTING: only process the first record ====
+    const toProcess = records.slice(0, 1)
     let processed = 0
 
-    // 4) For each record, pull sessions→segments and upload
-    for (const rec of records) {
+    for (const rec of toProcess) {
       const id = rec.id
       try {
-        // fetch sessions
-        const sess: any = await graph
+        // 4a) Fetch sessions
+        const sessResp: any = await graph
           .api(`/communications/callRecords/${id}/sessions`)
           .version('beta')
           .get()
-        const sessions = Array.isArray(sess.value) ? sess.value : []
+        const sessions = Array.isArray(sessResp.value) ? sessResp.value : []
 
-        // fetch all segments
+        // 4b) Fetch segments for each session
         const segments: any[] = []
         for (const s of sessions) {
-          const seg: any = await graph
+          const segResp: any = await graph
             .api(`/communications/callRecords/${id}/sessions/${s.id}/segments`)
             .version('beta')
             .get()
-          if (Array.isArray(seg.value)) segments.push(...seg.value)
+          if (Array.isArray(segResp.value)) segments.push(...segResp.value)
         }
 
-        // upload to Supabase Edge Function
+        // 4c) Upload to your Supabase Edge Function
         await fetch(
           `https://rpcypbgyhlidifpqckgl.functions.supabase.co/uploadTranscript`,
           {
@@ -90,11 +91,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
         processed++
       } catch (e) {
-        console.error(`Error processing ${id}:`, e)
+        console.error(`Error processing record ${id}:`, e)
       }
     }
 
-    // 5) Return how many we sent
+    // 5) Return how many we processed
     return res.status(200).json({ polled: processed })
   } catch (err: any) {
     console.error('pollCallRecords error:', err)
