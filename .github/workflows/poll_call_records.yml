@@ -1,0 +1,13 @@
+name: Poll Microsoft Graph
+
+on:
+  schedule:
+    - cron: '*/5 * * * *'   # every 5 minutes
+
+jobs:
+  poll:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Hit pollCallRecords endpoint
+        run: |
+          curl -X GET https://<your-vercel-domain>/api/graph/pollCallRecords
