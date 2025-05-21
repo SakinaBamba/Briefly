@@ -8,12 +8,12 @@ import 'isomorphic-fetch'
 const {
   AZURE_TENANT_ID,
   AZURE_CLIENT_ID,
-  AZURE_CLIENT_SECRET
+  AZURE_CLIENT_SECRET,
+  SUPABASE_SERVICE_ROLE_KEY
 } = process.env
 
-// In-memory lastPoll; cold starts reset this.
-// For production, persist in your DB instead.
-let lastPoll = new Date(Date.now() - 60 * 60 * 1000).toISOString()
+// ALWAYS pull everything by seeding far in the past:
+let lastPoll = '2000-01-01T00:00:00Z'
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   try {
@@ -34,7 +34,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       scopes: ['https://graph.microsoft.com/.default']
     })
     if (!tokenResp?.accessToken) {
-      throw new Error('Failed to acquire Graph access token')
+      throw new Error('Could not get Graph token')
     }
 
     // 2) Init Graph client
@@ -42,71 +42,62 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       authProvider: done => done(null, tokenResp.accessToken!)
     })
 
-    // 3) Fetch callRecords since lastPoll
+    // 3) List all callRecords (first page)
     const resp: any = await graph
       .api('/communications/callRecords')
       .version('beta')
       .get()
 
     const records = Array.isArray(resp.value) ? resp.value : []
+    let processed = 0
 
-    let processedCount = 0
-
-    // 4) Process each new record
+    // 4) For each record, pull sessions→segments and upload
     for (const rec of records) {
-      const recordTime = new Date(rec.lastModifiedDateTime)
-      if (recordTime < new Date(lastPoll)) {
-        continue
-      }
-
       const id = rec.id
-
       try {
-        // 4a) Fetch sessions under this callRecord
-        const sessResp: any = await graph
+        // fetch sessions
+        const sess: any = await graph
           .api(`/communications/callRecords/${id}/sessions`)
           .version('beta')
           .get()
-        const sessions = Array.isArray(sessResp.value) ? sessResp.value : []
+        const sessions = Array.isArray(sess.value) ? sess.value : []
 
-        // 4b) For each session, fetch its segments
-        const allSegments: any[] = []
-        for (const sess of sessions) {
-          const segResp: any = await graph
-            .api(`/communications/callRecords/${id}/sessions/${sess.id}/segments`)
+        // fetch all segments
+        const segments: any[] = []
+        for (const s of sessions) {
+          const seg: any = await graph
+            .api(`/communications/callRecords/${id}/sessions/${s.id}/segments`)
             .version('beta')
             .get()
-          if (Array.isArray(segResp.value)) {
-            allSegments.push(...segResp.value)
-          }
+          if (Array.isArray(seg.value)) segments.push(...seg.value)
         }
 
-        // 4c) Forward segments to your upload function
+        // upload to Supabase Edge Function
         await fetch(
-          `https://briefly-theta.vercel.app/api/uploadTranscript`,
+          `https://<YOUR-PROJECT-REF>.functions.supabase.co/uploadTranscript`,
           {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`
+            },
             body: JSON.stringify({
               meetingId: id,
-              transcript: allSegments
+              transcript: segments
             })
           }
         )
 
-        processedCount++
-      } catch (innerErr) {
-        console.error(`Error processing record ${rec.id}:`, innerErr)
+        processed++
+      } catch (e) {
+        console.error(`Error processing ${id}:`, e)
       }
     }
 
-    // 5) Update lastPoll
-    lastPoll = new Date().toISOString()
-
-    // 6) Return how many were processed
-    return res.status(200).json({ polled: processedCount })
+    // 5) Return how many we sent
+    return res.status(200).json({ polled: processed })
   } catch (err: any) {
-    console.error('🔥 pollCallRecords handler error:', err)
+    console.error('pollCallRecords error:', err)
     return res.status(500).json({ error: err.message })
   }
 }
