@@ -5,7 +5,6 @@ import { ConfidentialClientApplication } from '@azure/msal-node'
 import { Client } from '@microsoft/microsoft-graph-client'
 import 'isomorphic-fetch'
 
-// Required env‐vars
 const {
   AZURE_TENANT_ID,
   AZURE_CLIENT_ID,
@@ -14,7 +13,7 @@ const {
   SUPABASE_SERVICE_ROLE_KEY
 } = process.env
 
-// In‐memory last‐poll timestamp; resets on cold starts
+// Start one hour ago; serverless cold restarts reset this.
 let lastPoll = new Date(Date.now() - 60 * 60 * 1000).toISOString()
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
@@ -24,7 +23,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return res.status(405).json({ error: 'Method not allowed' })
     }
 
-    // 1) Acquire app‐only token
+    // 1) Acquire app-only token
     const cca = new ConfidentialClientApplication({
       auth: {
         authority: `https://login.microsoftonline.com/${AZURE_TENANT_ID}`,
@@ -32,33 +31,36 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         clientSecret: AZURE_CLIENT_SECRET!
       }
     })
-    const tokenResp = await cca.acquireTokenByClientCredential({
+    const token = await cca.acquireTokenByClientCredential({
       scopes: ['https://graph.microsoft.com/.default']
     })
-    if (!tokenResp?.accessToken) {
-      throw new Error('Failed to acquire Graph access token')
+    if (!token?.accessToken) {
+      throw new Error('Failed to acquire Graph token')
     }
 
     // 2) Init Graph client
     const graph = Client.init({
-      authProvider: done => done(null, tokenResp.accessToken!)
+      authProvider: done => done(null, token.accessToken!)
     })
 
-    // 3) Use SDK filter helper to get records since lastPoll
-    const response = await graph
+    // 3) Fetch the first page of callRecords (no filter)
+    const resp = await graph
       .api('/communications/callRecords')
       .version('beta')
-      .filter(`lastModifiedDateTime ge ${lastPoll}`)
       .get()
 
-    const records = Array.isArray(response.value) ? response.value : []
+    const allRecords = Array.isArray(resp.value) ? resp.value : []
 
-    // 4) Forward each transcript into your summarizer
-    for (const rec of records) {
-      const id = rec.id
+    // 4) Client-side filter by lastModifiedDateTime
+    const newRecords = allRecords.filter(rec => {
+      return new Date(rec.lastModifiedDateTime) >= new Date(lastPoll)
+    })
+
+    // 5) Forward each new record’s transcript
+    for (const rec of newRecords) {
       try {
         const transcripts = await graph
-          .api(`/communications/callRecords/${id}/transcripts`)
+          .api(`/communications/callRecords/${rec.id}/transcripts`)
           .version('beta')
           .get()
 
@@ -68,23 +70,23 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             'Content-Type': 'application/json',
             Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`
           },
-          body: JSON.stringify({ meetingId: id, transcript: transcripts })
+          body: JSON.stringify({
+            meetingId: rec.id,
+            transcript: transcripts
+          })
         })
       } catch (innerErr) {
-        console.error(`Failed processing record ${id}:`, innerErr)
+        console.error(`Error processing record ${rec.id}:`, innerErr)
       }
     }
 
-    // 5) Update lastPoll to now
+    // 6) Advance lastPoll
     lastPoll = new Date().toISOString()
 
-    return res.status(200).json({ polled: records.length })
+    return res.status(200).json({ polled: newRecords.length })
   } catch (err: any) {
-    console.error('🔥 pollCallRecords handler error:', err)
-    return res.status(500).json({
-      error: err.message,
-      stack: err.stack?.split('\n').slice(0, 5)
-    })
+    console.error('🔥 pollCallRecords error:', err)
+    return res.status(500).json({ error: err.message })
   }
 }
 
