@@ -5,7 +5,6 @@ import { ConfidentialClientApplication } from '@azure/msal-node';
 import { Client } from '@microsoft/microsoft-graph-client';
 import 'isomorphic-fetch';
 
-
 const {
   AZURE_TENANT_ID,
   AZURE_CLIENT_ID,
