@@ -14,7 +14,7 @@ const {
 } = process.env
 
 // Start one hour ago; serverless cold restarts reset this.
-let lastPoll = new Date(Date.now() - 60 * 60 * 1000).toISOString()
+let lastPoll = '2000-01-01T00:00:00Z'
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   try {
