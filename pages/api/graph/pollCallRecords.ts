@@ -74,7 +74,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
         // upload to Supabase Edge Function
         await fetch(
-          `https://<YOUR-PROJECT-REF>.functions.supabase.co/uploadTranscript`,
+          `https://rpcypbgyhlidifpqckgl.functions.supabase.co/uploadTranscript`,
           {
             method: 'POST',
             headers: {
