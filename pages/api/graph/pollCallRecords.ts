@@ -6,6 +6,7 @@ const response = await fetch(`https://graph.microsoft.com/v1.0/me/onlineMeetings
   },
 });
 
+
 const meetings = await response.json();
 
 for (const meeting of meetings.value) {
