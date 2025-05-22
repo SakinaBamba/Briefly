@@ -36,4 +36,3 @@ async function pollCallRecords() {
 // Call the polling function
 pollCallRecords();
 
-
