@@ -1,12 +1,15 @@
-// pollCallRecords.ts
-export {}; // This line makes the file a module so top-level await is allowed
+// pages/api/graph/pollCallRecords.ts
 
-const accessToken = process.env.GRAPH_API_ACCESS_TOKEN;
+import type { NextApiRequest, NextApiResponse } from 'next'
 
-async function pollCallRecords() {
+export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+  if (req.method !== 'POST') {
+    return res.status(405).json({ error: 'Method not allowed. Use POST.' })
+  }
+
+  const accessToken = process.env.GRAPH_API_ACCESS_TOKEN
   if (!accessToken) {
-    console.error("Missing GRAPH_API_ACCESS_TOKEN");
-    return;
+    return res.status(500).json({ error: 'Missing GRAPH_API_ACCESS_TOKEN in env' })
   }
 
   try {
@@ -14,25 +17,19 @@ async function pollCallRecords() {
       headers: {
         Authorization: `Bearer ${accessToken}`,
       },
-    });
+    })
 
     if (!response.ok) {
-      console.error("Failed to fetch meetings:", await response.text());
-      return;
+      const text = await response.text()
+      return res.status(response.status).json({ error: 'Failed to fetch meetings', details: text })
     }
 
-    const data = await response.json();
-    console.log("Meetings:", data);
-
-    // Optional: iterate over each meeting and do more with them
-    for (const meeting of data.value) {
-      console.log(`Meeting: ${meeting.subject}, ID: ${meeting.id}`);
-    }
+    const data = await response.json()
+    return res.status(200).json({ meetings: data.value })
   } catch (error) {
-    console.error("Polling failed:", error);
+    console.error('Polling failed:', error)
+    return res.status(500).json({ error: 'Internal server error' })
   }
 }
 
-// Call the polling function
-pollCallRecords();
 
