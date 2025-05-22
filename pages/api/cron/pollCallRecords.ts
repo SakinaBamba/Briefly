@@ -4,6 +4,7 @@ export const config = {
   schedule: '*/5 * * * *' // Optional here, but defined in vercel.json
 }
 
+
 export default async function handler(req: Request) {
   const accessToken = process.env.GRAPH_ACCESS_TOKEN
   const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'https://your-vercel-url.vercel.app'
