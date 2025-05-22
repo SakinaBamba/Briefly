@@ -1,0 +1,8 @@
+{
+  "functions": {
+    "api/graph/pollCallRecords.ts": {
+      "runtime": "edge",
+      "schedule": "*/5 * * * *"
+    }
+  }
+}
