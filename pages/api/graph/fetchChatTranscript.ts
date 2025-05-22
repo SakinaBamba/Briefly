@@ -1,96 +1,53 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
-import { ConfidentialClientApplication } from '@azure/msal-node';
-import { Client } from '@microsoft/microsoft-graph-client';
-import 'isomorphic-fetch';
+import { createClient } from '@supabase/supabase-js';
+import { getSession } from '@supabase/auth-helpers-nextjs';
 
-const {
-  AZURE_TENANT_ID,
-  AZURE_CLIENT_ID,
-  AZURE_CLIENT_SECRET,
-  SUPABASE_SERVICE_ROLE_KEY,
-  SUPABASE_SERVICE_URL,
-} = process.env;
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY! // Use service role for server-side
+);
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'POST') {
-    res.setHeader('Allow', 'POST');
-    return res.status(405).end();
+    return res.status(405).json({ message: 'Method not allowed' });
   }
-
-  const { meetingId, organizerEmail } = req.body;
-
-  if (!meetingId || !organizerEmail) {
-    return res.status(400).json({ error: 'Missing meetingId or organizerEmail' });
-  }
-
-  // 1) Acquire Graph token
-  const cca = new ConfidentialClientApplication({
-    auth: {
-      authority: `https://login.microsoftonline.com/${AZURE_TENANT_ID}`,
-      clientId: AZURE_CLIENT_ID!,
-      clientSecret: AZURE_CLIENT_SECRET!,
-    },
-  });
-
-  const tokenResp = await cca.acquireTokenByClientCredential({
-    scopes: ['https://graph.microsoft.com/.default'],
-  });
-
-  if (!tokenResp?.accessToken) {
-    return res.status(500).json({ error: 'Could not get token' });
-  }
-
-  const graph = Client.init({
-    authProvider: done => done(null, tokenResp.accessToken!),
-  });
 
   try {
-    // 2) Convert the meetingId to a Graph meeting object
-    const meeting = await graph
-      .api(`/users/${organizerEmail}/onlineMeetings/getByMeetingId`)
-      .post({ meetingId });
+    const { meetingId, transcriptUrl } = req.body;
 
-    const chatId = meeting.chatInfo?.threadId;
-    if (!chatId) {
-      return res.status(404).json({ error: 'Could not find chat thread for this meeting' });
+    if (!meetingId || !transcriptUrl) {
+      return res.status(400).json({ error: 'Missing meetingId or transcriptUrl' });
     }
 
-    // 3) Fetch chat messages from the meeting chat
-    const chatResp = await graph
-      .api(`/chats/${encodeURIComponent(chatId)}/messages`)
-      .get();
-
-    const messages = Array.isArray(chatResp.value) ? chatResp.value : [];
-
-    // 4) Extract and clean messages
-    const transcript = messages.map((m: any) => ({
-      timestamp: m.createdDateTime,
-      text: m.body?.content?.replace(/<[^>]+>/g, '').trim() || '',
-    })).filter((l: any) => !!l.text);
-
-    // 5) Upload to Supabase Edge Function
-    const upl = await fetch(`${SUPABASE_SERVICE_URL}/uploadTranscript`, {
-      method: 'POST',
+    // Fetch the transcript file (assumes .vtt or text format)
+    const transcriptResponse = await fetch(transcriptUrl, {
       headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
-      },
-      body: JSON.stringify({ meetingId, transcript }),
+        Authorization: `Bearer ${process.env.MS_GRAPH_ACCESS_TOKEN}`
+      }
     });
 
-    if (!upl.ok) {
-      const err = await upl.text();
-      throw new Error(`Supabase upload failed: ${err}`);
+    if (!transcriptResponse.ok) {
+      return res.status(500).json({ error: 'Failed to fetch transcript from Microsoft Graph' });
     }
 
-    return res.status(200).json({
-      message: 'Chat transcript fetched & uploaded',
-      linesCount: transcript.length,
-    });
+    const transcriptText = await transcriptResponse.text();
 
+    // Store in Supabase (assumes you have a `meetings` table)
+    const { error } = await supabase.from('meetings').insert([
+      {
+        meeting_id: meetingId,
+        transcript: transcriptText
+      }
+    ]);
+
+    if (error) {
+      return res.status(500).json({ error: error.message });
+    }
+
+    return res.status(200).json({ message: 'Transcript stored successfully' });
   } catch (err: any) {
-    console.error('fetchChatTranscript error:', err);
-    return res.status(500).json({ error: err.message || 'Unknown error' });
+    console.error(err);
+    return res.status(500).json({ error: 'Internal server error' });
   }
 }
 
