@@ -1,9 +1,7 @@
 {
   "functions": {
-    "api/graph/pollCallRecords.ts": {
-      "runtime": "edge",
-      "schedule": "*/5 * * * *"
+    "api/pollCallRecords.ts": {
+      "schedule": "every 5 minutes"
     }
   }
 }
-
