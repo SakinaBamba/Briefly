@@ -1,7 +1,9 @@
 {
-  "functions": {
-    "api/pollCallRecords.ts": {
-      "schedule": "every 5 minutes"
+  "experimental": {
+    "functions": {
+      "api/pollCallRecords.ts": {
+        "schedule": "every 5 minutes"
+      }
     }
   }
 }
