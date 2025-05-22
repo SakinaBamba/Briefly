@@ -1,10 +1,9 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { createClient } from '@supabase/supabase-js';
-import { getSession } from '@supabase/auth-helpers-nextjs';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY! // Use service role for server-side
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
@@ -19,7 +18,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return res.status(400).json({ error: 'Missing meetingId or transcriptUrl' });
     }
 
-    // Fetch the transcript file (assumes .vtt or text format)
     const transcriptResponse = await fetch(transcriptUrl, {
       headers: {
         Authorization: `Bearer ${process.env.MS_GRAPH_ACCESS_TOKEN}`
@@ -32,7 +30,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     const transcriptText = await transcriptResponse.text();
 
-    // Store in Supabase (assumes you have a `meetings` table)
     const { error } = await supabase.from('meetings').insert([
       {
         meeting_id: meetingId,
@@ -50,4 +47,5 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(500).json({ error: 'Internal server error' });
   }
 }
+
 
