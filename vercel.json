@@ -1,9 +1,8 @@
 {
-  "experimental": {
-    "functions": {
-      "api/pollCallRecords.ts": {
-        "schedule": "every 5 minutes"
-      }
+  "cron": [
+    {
+      "path": "/api/cron/pollCallRecords",
+      "schedule": "*/5 * * * *"
     }
-  }
+  ]
 }
