@@ -6,6 +6,7 @@ export default function Dashboard() {
   const [email, setEmail] = useState('')
   const supabase = createClientComponentClient()
 
+  
   useEffect(() => {
     const getUser = async () => {
       const { data: { user } } = await supabase.auth.getUser()
