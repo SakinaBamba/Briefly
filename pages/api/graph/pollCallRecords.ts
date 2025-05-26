@@ -1,7 +1,8 @@
 // pages/api/graph/pollCallRecords.ts
 import type { NextApiRequest, NextApiResponse } from 'next'
 import { createClient } from '@supabase/supabase-js'
-import { getGraphAccessToken } from '../../utils/getGraphToken'
+import { getGraphAccessToken } from '../../../utils/getGraphToken'
+
 
 
 const supabase = createClient(
