@@ -10,7 +10,7 @@ const supabase = createClient(
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   const accessToken = process.env.GRAPH_ACCESS_TOKEN // Must be fresh
   const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'
-  const userId = '296de7d5-549c-456d-b2da-4204276617b6' // Replace with your real user GUID
+  const userId = '8162fe61-751c-4543-8f5e-a4e1eb2ca1bc' // Replace with your real user GUID
 
   if (!accessToken) {
     return res.status(500).json({ error: 'Missing GRAPH_ACCESS_TOKEN env var' })
