@@ -3,8 +3,6 @@ import type { NextApiRequest, NextApiResponse } from 'next'
 import { createClient } from '@supabase/supabase-js'
 import { getGraphAccessToken } from '../../../utils/getGraphToken'
 
-
-
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY! // Must use service role to insert
@@ -13,6 +11,7 @@ const supabase = createClient(
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   const accessToken = await getGraphAccessToken()
   const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'
+  const userId = 'SakinaBamba@BrieflyAI.onmicrosoft.com' // Use full UPN or GUID
 
   if (!accessToken) {
     return res.status(500).json({ error: 'Failed to get Graph API token' })
@@ -20,7 +19,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   try {
     // 1. Fetch ended meetings
-    const meetingsRes = await fetch('https://graph.microsoft.com/v1.0/me/onlineMeetings', {
+    const meetingsRes = await fetch(`https://graph.microsoft.com/v1.0/users/${userId}/onlineMeetings`, {
       headers: { Authorization: `Bearer ${accessToken}` }
     })
 
@@ -58,9 +57,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       }
 
       // 3. Fetch transcript metadata
-      const transcriptRes = await fetch(`https://graph.microsoft.com/v1.0/me/onlineMeetings/${meetingId}/transcripts`, {
-        headers: { Authorization: `Bearer ${accessToken}` }
-      })
+      const transcriptRes = await fetch(
+        `https://graph.microsoft.com/v1.0/users/${userId}/onlineMeetings/${meetingId}/transcripts`,
+        { headers: { Authorization: `Bearer ${accessToken}` } }
+      )
 
       const transcriptData = await transcriptRes.json()
       const transcriptItems = transcriptData.value || []
@@ -74,7 +74,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
       // 4. Get transcript content
       const contentRes = await fetch(
-        `https://graph.microsoft.com/v1.0/me/onlineMeetings/${meetingId}/transcripts/${transcriptId}/content`,
+        `https://graph.microsoft.com/v1.0/users/${userId}/onlineMeetings/${meetingId}/transcripts/${transcriptId}/content`,
         {
           headers: { Authorization: `Bearer ${accessToken}` }
         }
