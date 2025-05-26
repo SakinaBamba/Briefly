@@ -1,26 +1,27 @@
 // pages/api/graph/pollCallRecords.ts
 import type { NextApiRequest, NextApiResponse } from 'next'
 import { createClient } from '@supabase/supabase-js'
+import { getGraphAccessToken } from '@/utils/getGraphToken'
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY! // needs service role to read all user rows
+  process.env.SUPABASE_SERVICE_ROLE_KEY! // Must use service role to insert
 )
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  const accessToken = process.env.GRAPH_ACCESS_TOKEN // Must be fresh
+  const accessToken = await getGraphAccessToken()
   const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'
-  const userId = '8162fe61-751c-4543-8f5e-a4e1eb2ca1bc' // Replace with your real user GUID
 
   if (!accessToken) {
-    return res.status(500).json({ error: 'Missing GRAPH_ACCESS_TOKEN env var' })
+    return res.status(500).json({ error: 'Failed to get Graph API token' })
   }
 
   try {
-    // 1. Fetch ended meetings from Graph
-    const meetingsRes = await fetch(`https://graph.microsoft.com/v1.0/users/${userId}/onlineMeetings`, {
+    // 1. Fetch ended meetings
+    const meetingsRes = await fetch('https://graph.microsoft.com/v1.0/me/onlineMeetings', {
       headers: { Authorization: `Bearer ${accessToken}` }
     })
+
     const meetingsData = await meetingsRes.json()
 
     if (!meetingsData.value) {
@@ -36,7 +37,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     for (const meeting of endedMeetings) {
       const meetingId = meeting.id
 
-      // 2. Check if we've already summarized this meeting
+      // 2. Skip if already summarized
       const { data: existing, error: checkError } = await supabase
         .from('meetings')
         .select('id')
@@ -54,13 +55,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         continue
       }
 
-      // 3. Get transcript ID
-      const transcriptRes = await fetch(
-        `https://graph.microsoft.com/v1.0/users/${userId}/onlineMeetings/${meetingId}/transcripts`,
-        {
-          headers: { Authorization: `Bearer ${accessToken}` }
-        }
-      )
+      // 3. Fetch transcript metadata
+      const transcriptRes = await fetch(`https://graph.microsoft.com/v1.0/me/onlineMeetings/${meetingId}/transcripts`, {
+        headers: { Authorization: `Bearer ${accessToken}` }
+      })
 
       const transcriptData = await transcriptRes.json()
       const transcriptItems = transcriptData.value || []
@@ -74,8 +72,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
       // 4. Get transcript content
       const contentRes = await fetch(
-        `https://graph.microsoft.com/v1.0/users/${userId}/onlineMeetings/${meetingId}/transcripts/${transcriptId}/content`,
-        { headers: { Authorization: `Bearer ${accessToken}` } }
+        `https://graph.microsoft.com/v1.0/me/onlineMeetings/${meetingId}/transcripts/${transcriptId}/content`,
+        {
+          headers: { Authorization: `Bearer ${accessToken}` }
+        }
       )
 
       const contentData = await contentRes.json()
@@ -92,13 +92,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           transcript: transcriptText,
-          user_id: 'dummy-user-id' // Replace with actual user ID if available
+          user_id: 'dummy-user-id' // Replace later with dynamic user detection
         })
       })
 
       const summarizeResult = await summarizeRes.json()
 
-      // 6. Store meeting as processed
+      // 6. Store meeting in Supabase
       await supabase.from('meetings').insert({
         external_meeting_id: meetingId,
         transcript: transcriptText,
@@ -120,3 +120,4 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(500).json({ error: 'Polling failed', details: error.message })
   }
 }
+
