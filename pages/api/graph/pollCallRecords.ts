@@ -2,7 +2,6 @@
 import type { NextApiRequest, NextApiResponse } from 'next'
 import { createClient } from '@supabase/supabase-js'
 
-
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY! // needs service role to read all user rows
@@ -11,6 +10,7 @@ const supabase = createClient(
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   const accessToken = process.env.GRAPH_ACCESS_TOKEN // Must be fresh
   const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'
+  const userId = '296de7d5-549c-456d-b2da-4204276617b6' // Replace with your real user GUID
 
   if (!accessToken) {
     return res.status(500).json({ error: 'Missing GRAPH_ACCESS_TOKEN env var' })
@@ -18,7 +18,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   try {
     // 1. Fetch ended meetings from Graph
-    const meetingsRes = await fetch('https://graph.microsoft.com/v1.0/me/onlineMeetings', {
+    const meetingsRes = await fetch(`https://graph.microsoft.com/v1.0/users/${userId}/onlineMeetings`, {
       headers: { Authorization: `Bearer ${accessToken}` }
     })
     const meetingsData = await meetingsRes.json()
@@ -55,9 +55,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       }
 
       // 3. Get transcript ID
-      const transcriptRes = await fetch(`https://graph.microsoft.com/v1.0/me/onlineMeetings/${meetingId}/transcripts`, {
-        headers: { Authorization: `Bearer ${accessToken}` }
-      })
+      const transcriptRes = await fetch(
+        `https://graph.microsoft.com/v1.0/users/${userId}/onlineMeetings/${meetingId}/transcripts`,
+        {
+          headers: { Authorization: `Bearer ${accessToken}` }
+        }
+      )
 
       const transcriptData = await transcriptRes.json()
       const transcriptItems = transcriptData.value || []
@@ -71,7 +74,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
       // 4. Get transcript content
       const contentRes = await fetch(
-        `https://graph.microsoft.com/v1.0/me/onlineMeetings/${meetingId}/transcripts/${transcriptId}/content`,
+        `https://graph.microsoft.com/v1.0/users/${userId}/onlineMeetings/${meetingId}/transcripts/${transcriptId}/content`,
         { headers: { Authorization: `Bearer ${accessToken}` } }
       )
 
@@ -89,7 +92,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           transcript: transcriptText,
-          user_id: 'dummy-user-id' // Replace later with the actual one
+          user_id: 'dummy-user-id' // Replace with actual user ID if available
         })
       })
 
