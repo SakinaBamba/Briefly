@@ -71,7 +71,7 @@ export default function ClientPage() {
 
   return (
     <div style={{ padding: '40px' }}>
-      <h1>{client.name}</h1>
+      <h1>{client.client_name}</h1>
 
       {opportunities.length === 0 ? (
         <p>No opportunities yet.</p>
@@ -121,7 +121,7 @@ export default function ClientPage() {
                     const url = window.URL.createObjectURL(blob)
                     const a = document.createElement('a')
                     a.href = url
-                    a.download = `${client.name} - ${opp.name} Proposal.docx`
+                    a.download = `${client.client_name} - ${opp.name} Proposal.docx`
                     document.body.appendChild(a)
                     a.click()
                     a.remove()
