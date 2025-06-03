@@ -4,6 +4,7 @@ import { GetServerSideProps } from 'next'
 import { parse } from 'cookie'
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/router'
+import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
 
 interface Meeting {
   id: string
