@@ -2,25 +2,17 @@ import { NextApiRequest, NextApiResponse } from 'next'
 import { createClient } from '@supabase/supabase-js'
 import axios from 'axios'
 
-// Supabase client
+// Initialize Supabase client
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 )
 
-// Parse VTT to text
-function parseVTTtoText(vtt: string): string {
-  return vtt
-    .split('\n')
-    .filter(line => line && !line.match(/^[0-9]+$/) && !line.match(/^\d\d:\d\d/))
-    .join(' ')
-}
-
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   try {
     const { user_id } = req.body
 
-    // Load user's MS Graph token
+    // 1️⃣ Load user's MS token from Supabase
     const { data: tokenRow, error: tokenError } = await supabase
       .from('ms_tokens')
       .select('ms_access_token')
@@ -33,7 +25,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     const token = tokenRow.ms_access_token
 
-    // STEP 1: List recent callRecords
+    // 2️⃣ Call callRecords directly
     const callRecordsResp = await axios.get(
       `https://graph.microsoft.com/v1.0/communications/callRecords`,
       { headers: { Authorization: `Bearer ${token}` } }
@@ -42,17 +34,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const callRecords = callRecordsResp.data.value
 
     for (const record of callRecords) {
-      const joinWebUrl: string = record.joinWebUrl
+      const callRecordId = record.id
+      const externalMeetingId = record.joinWebUrl // we can still save the join URL for reference
 
-      if (!joinWebUrl) continue
-
-      // Extract external meeting ID from joinWebUrl
-      const match = joinWebUrl.match(/19%3ameeting_[^%]+/)
-      if (!match) continue
-      const encodedExternalMeetingId = match[0].replace('%3a', ':')
-      const externalMeetingId = encodedExternalMeetingId // should look like: 19:meeting_xxxxx
-
-      // STEP 2: Check if meeting already exists in Supabase
+      // 3️⃣ Check if meeting exists in Supabase already
       const { data: existingMeeting } = await supabase
         .from('meetings')
         .select('id')
@@ -61,42 +46,35 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
       if (existingMeeting) {
         console.log(`Meeting ${externalMeetingId} already exists.`)
-        continue // skip duplicates
+        continue
       }
 
-      // STEP 3: Get onlineMeetingId from MS Graph
-      const encodedJoinWebUrl = encodeURIComponent(joinWebUrl)
-      const onlineMeetingsResp = await axios.get(
-        `https://graph.microsoft.com/v1.0/me/onlineMeetings?$filter=joinWebUrl eq '${encodedJoinWebUrl}'`,
+      // 4️⃣ Now query sessions inside this call record
+      const sessionsResp = await axios.get(
+        `https://graph.microsoft.com/v1.0/communications/callRecords/${callRecordId}/sessions`,
         { headers: { Authorization: `Bearer ${token}` } }
       )
 
-      const onlineMeetingId = onlineMeetingsResp.data.value[0]?.id
-      if (!onlineMeetingId) continue
+      const sessions = sessionsResp.data.value
 
-      // STEP 4: Get transcripts
-      const transcriptsResp = await axios.get(
-        `https://graph.microsoft.com/v1.0/me/onlineMeetings/${onlineMeetingId}/transcripts`,
-        { headers: { Authorization: `Bearer ${token}` } }
-      )
+      let fullTranscript = ''
 
-      const transcriptId = transcriptsResp.data.value[0]?.id
-      if (!transcriptId) continue
+      for (const session of sessions) {
+        if (!session.transcription || !session.transcription.transcript) continue
 
-      // STEP 5: Fetch transcript content (VTT)
-      const contentResp = await axios.get(
-        `https://graph.microsoft.com/v1.0/me/onlineMeetings/${onlineMeetingId}/transcripts/${transcriptId}/content?$format=text/vtt`,
-        { headers: { Authorization: `Bearer ${token}` } }
-      )
+        fullTranscript += session.transcription.transcript + ' '
+      }
 
-      const vttText = contentResp.data
-      const plainTranscript = parseVTTtoText(vttText)
+      if (!fullTranscript) {
+        console.log(`No transcript found for ${externalMeetingId}`)
+        continue
+      }
 
-      // STEP 6: Insert into Supabase
+      // 5️⃣ Insert into Supabase
       const { error: insertError } = await supabase.from('meetings').insert({
         external_meeting_id: externalMeetingId,
         user_id,
-        transcript: plainTranscript,
+        transcript: fullTranscript,
         summary: null,
         proposal_items: null
       })
