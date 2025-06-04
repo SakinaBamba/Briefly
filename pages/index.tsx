@@ -44,6 +44,22 @@ export default function HomePage() {
   const router = useRouter()
   const supabase = createClientComponentClient()
 
+  // 🔧 NEW PATCH: Handle OAuth code exchange
+  useEffect(() => {
+    const handleOAuthCallback = async () => {
+      if (typeof window !== 'undefined' && window.location.href.includes('code=')) {
+        const { error } = await supabase.auth.getSessionFromUrl();
+        if (error) {
+          console.error("Error exchanging code:", error)
+        } else {
+          // Once exchanged, reload page so getServerSideProps picks up the session
+          router.replace('/')
+        }
+      }
+    }
+    handleOAuthCallback()
+  }, [])
+
   useEffect(() => {
     fetch('/api/getMeetings')
       .then((res) => res.json())
@@ -68,7 +84,6 @@ export default function HomePage() {
   }, [supabase])
 
   const handleLogout = async () => {
-    // Clear Supabase cookies by hitting your logout endpoint
     await fetch('/api/auth/logout', { method: 'POST' })
     router.push('/login')
   }
@@ -180,7 +195,6 @@ export default function HomePage() {
                   }
                   setAssignMeetingId(null)
                   setSelectedClientId(null)
-                  // Refresh data
                   const mRes = await fetch('/api/getMeetings')
                   setMeetings((await mRes.json()).meetings)
                   const cRes = await fetch(`/api/getClients?organizationId=${userId}`)
