@@ -1,8 +1,8 @@
 import { GetServerSideProps } from 'next'
-import { createServerSupabaseClient } from '@supabase/auth-helpers-nextjs'
+import { createServerClient } from '@supabase/ssr'
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/router'
-import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
+import { createBrowserClient } from '@supabase/ssr'
 
 interface Meeting {
   id: string
@@ -17,7 +17,14 @@ interface Client {
 }
 
 export const getServerSideProps: GetServerSideProps = async (ctx) => {
-  const supabase = createServerSupabaseClient(ctx)
+  const supabase = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: ctx.req.headers.cookie
+    }
+  )
+
   const {
     data: { session },
   } = await supabase.auth.getSession()
@@ -42,23 +49,10 @@ export default function HomePage() {
   const [selectedClientId, setSelectedClientId] = useState<string | null>(null)
   const [userId, setUserId] = useState<string | null>(null)
   const router = useRouter()
-  const supabase = createClientComponentClient()
-
-  // 🔧 NEW PATCH: Handle OAuth code exchange
-  useEffect(() => {
-    const handleOAuthCallback = async () => {
-      if (typeof window !== 'undefined' && window.location.href.includes('code=')) {
-        const { error } = await supabase.auth.getSessionFromUrl();
-        if (error) {
-          console.error("Error exchanging code:", error)
-        } else {
-          // Once exchanged, reload page so getServerSideProps picks up the session
-          router.replace('/')
-        }
-      }
-    }
-    handleOAuthCallback()
-  }, [])
+  const supabase = createBrowserClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+  )
 
   useEffect(() => {
     fetch('/api/getMeetings')
@@ -81,10 +75,10 @@ export default function HomePage() {
       }
     }
     loadUserAndClients()
-  }, [supabase])
+  }, [])
 
   const handleLogout = async () => {
-    await fetch('/api/auth/logout', { method: 'POST' })
+    await supabase.auth.signOut()
     router.push('/login')
   }
 
@@ -211,5 +205,3 @@ export default function HomePage() {
     </div>
   )
 }
-
-
