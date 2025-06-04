@@ -11,6 +11,7 @@ interface Meeting {
   client_id: string | null
 }
 
+
 interface Client {
   id: string
   client_name: string
