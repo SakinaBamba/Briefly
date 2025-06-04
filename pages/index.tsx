@@ -1,7 +1,7 @@
 // File: pages/index.tsx
 
 import { GetServerSideProps } from 'next'
-import { parse } from 'cookie'
+import { createServerSupabaseClient } from '@supabase/auth-helpers-nextjs'
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/router'
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
@@ -18,13 +18,13 @@ interface Client {
   client_name: string
 }
 
-export const getServerSideProps: GetServerSideProps = async ({ req }) => {
-  // Parse cookies from the incoming request
-  const cookies = req.headers.cookie
-  const parsed = cookies ? parse(cookies) : {}
+export const getServerSideProps: GetServerSideProps = async (ctx) => {
+  const supabase = createServerSupabaseClient({ req: ctx.req, res: ctx.res })
+  const {
+    data: { session },
+  } = await supabase.auth.getSession()
 
-  // Supabase stores the JWT in sb-access-token
-  if (!parsed['sb-access-token']) {
+  if (!session) {
     return {
       redirect: {
         destination: '/login',
@@ -33,8 +33,7 @@ export const getServerSideProps: GetServerSideProps = async ({ req }) => {
     }
   }
 
-  // Session cookie exists → allow render
-  return { props: {} }
+  return { props: { initialSession: session } }
 }
 
 export default function HomePage() {
@@ -88,8 +87,7 @@ export default function HomePage() {
               <h2 className="text-xl font-semibold">{meeting.title}</h2>
               <p className="text-gray-600 mt-2">{meeting.summary}</p>
               <p className="text-sm mt-2">
-                Client:{' '}
-                {meeting.client_id ? meeting.client_id : 'Unassigned'}
+                Client: {meeting.client_id ? meeting.client_id : 'Unassigned'}
               </p>
               {!meeting.client_id && (
                 <button
@@ -188,5 +186,3 @@ export default function HomePage() {
     </div>
   )
 }
-
-
