@@ -112,43 +112,39 @@ export default function HomePage() {
         <div className="space-y-4">
           {meetings.map((meeting) => (
             <div key={meeting.id} className="p-4 border rounded-lg">
-                            <h2 className="font-semibold">{meeting.title}</h2>
-              <p className="mt-1 text-sm text-gray-700">{meeting.summary}</p>
+              <h2 className="font-semibold">{meeting.title}</h2>
+              <p className="text-sm text-gray-600 mb-2">{meeting.summary}</p>
               {meeting.client_id ? (
-                <p className="mt-2 text-sm text-gray-500">
-                  Assigned to{' '}
-                  {clients.find((c) => c.id === meeting.client_id)?.client_name || 'client'}
+                <p className="text-sm text-green-700">
+                  Assigned to {clients.find(c => c.id === meeting.client_id)?.client_name || meeting.client_id}
                 </p>
               ) : (
-                <div className="mt-2">
+                <>
                   {assignMeetingId === meeting.id ? (
-                    <div className="flex items-center space-x-2">
+                    <div className="mt-2">
                       <select
-                        className="border rounded px-2 py-1"
-                        value={selectedClientId ?? ''}
+                        className="border p-1 mr-2"
                         onChange={(e) => setSelectedClientId(e.target.value)}
+                        value={selectedClientId || ''}
                       >
                         <option value="">Select client</option>
-                        {clients.map((c) => (
-                          <option key={c.id} value={c.id}>
-                            {c.client_name}
+                        {clients.map((client) => (
+                          <option key={client.id} value={client.id}>
+                            {client.client_name}
                           </option>
                         ))}
                       </select>
                       <button
-                        className="px-2 py-1 bg-blue-600 text-white rounded"
+                        className="px-2 py-1 bg-green-600 text-white rounded mr-2"
                         onClick={async () => {
                           if (!selectedClientId) return
                           await fetch('/api/assignMeetingToClient', {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({
-                              meetingId: meeting.id,
-                              clientId: selectedClientId,
-                            }),
+                            body: JSON.stringify({ meetingId: meeting.id, clientId: selectedClientId })
                           })
-                          setMeetings((prev) =>
-                            prev.map((m) =>
+                          setMeetings(
+                            meetings.map((m) =>
                               m.id === meeting.id ? { ...m, client_id: selectedClientId } : m
                             )
                           )
@@ -159,7 +155,7 @@ export default function HomePage() {
                         Save
                       </button>
                       <button
-                        className="px-2 py-1"
+                        className="px-2 py-1 bg-gray-300 rounded"
                         onClick={() => {
                           setAssignMeetingId(null)
                           setSelectedClientId(null)
@@ -169,17 +165,16 @@ export default function HomePage() {
                       </button>
                     </div>
                   ) : (
-                    <button
-                      onClick={() => {
-                        setAssignMeetingId(meeting.id)
-                        setSelectedClientId(null)
-                      }}
-                      className="mt-2 px-2 py-1 bg-blue-500 text-white rounded"
-                    >
-                      Assign to Client
-                    </button>
+                    userId && (
+                      <button
+                        className="mt-2 px-2 py-1 bg-blue-600 text-white rounded"
+                        onClick={() => setAssignMeetingId(meeting.id)}
+                      >
+                        Assign to Client
+                      </button>
+                    )
                   )}
-                </div>
+                </>
               )}
             </div>
           ))}
