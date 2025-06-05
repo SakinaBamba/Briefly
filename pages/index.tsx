@@ -54,6 +54,22 @@ export default function HomePage() {
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
   )
 
+  // 🔧 NEW: Handle OAuth redirect code from Supabase
+  useEffect(() => {
+    const handleOAuthCallback = async () => {
+      if (typeof window !== 'undefined' && window.location.href.includes('code=')) {
+        const { error } = await supabase.auth.getSessionFromUrl();
+        if (error) {
+          console.error("Error exchanging code:", error);
+        } else {
+          // Reload page to allow SSR to pick up the new session cookie
+          router.replace('/');
+        }
+      }
+    };
+    handleOAuthCallback();
+  }, []);
+
   useEffect(() => {
     fetch('/api/getMeetings')
       .then((res) => res.json())
