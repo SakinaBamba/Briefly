@@ -1,111 +1,154 @@
-// pages/api/generateProposal.ts
-
-import type { NextApiRequest, NextApiResponse } from 'next';
-import { createClient } from '@supabase/supabase-js';
-import { Document, Packer, Paragraph, TextRun } from 'docx';
-import fetch from 'node-fetch';
-import mammoth from 'mammoth';
-import pdfParse from 'pdf-parse';
-
+import { NextApiRequest, NextApiResponse } from 'next'
+import { createClient } from '@supabase/supabase-js'
+import { Document, Packer, Paragraph, TextRun } from 'docx'
+import fetch from 'node-fetch'
+import mammoth from 'mammoth'
+import pdfParse from 'pdf-parse'
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
-
-type OpenAIResponse = {
-  choices?: {
-    message?: {
-      content?: string;
-    };
-  }[];
-};
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
+)
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  if (req.method !== 'POST') {
-    return res.status(405).json({ error: 'Method not allowed' });
-  }
+  if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' })
 
-  const { fileUrl } = req.body;
-  if (!fileUrl) return res.status(400).json({ error: 'Missing fileUrl' });
+  const { opportunity_id } = req.body
+  if (!opportunity_id) return res.status(400).json({ error: 'Missing opportunity_id' })
 
   try {
-    const fileRes = await fetch(fileUrl);
-    const buffer = await fileRes.arrayBuffer();
-    const fileData = Buffer.from(buffer);
+    const { data: meetings } = await supabase
+      .from('meetings')
+      .select('*')
+      .eq('opportunity_id', opportunity_id)
 
-    const ext = fileUrl.split('.').pop()?.toLowerCase();
-    let textContent = '';
+    const { data: opportunity } = await supabase
+      .from('opportunities')
+      .select('name, client_id')
+      .eq('id', opportunity_id)
+      .single()
 
-    if (ext === 'docx') {
-      const result = await mammoth.extractRawText({ buffer: fileData });
-      textContent = result.value;
-    } else if (ext === 'pdf') {
-      const result = await pdfParse(fileData);
-      textContent = result.text;
-    } else {
-      return res.status(400).json({ error: 'Unsupported file type' });
-    }
+    const { data: client } = await supabase
+      .from('clients')
+      .select('name')
+      .eq('id', opportunity!.client_id)
+      .single()
+
+    const { data: files } = await supabase
+      .from('opportunity_files')
+      .select('*')
+      .eq('opportunity_id', opportunity_id)
+
+    const { data: clarifications } = await supabase
+      .from('clarifications')
+      .select('*')
+      .eq('opportunity_id', opportunity_id)
+
+    const extractedFiles = await Promise.all(
+      (files || []).map(async file => {
+        const { data: signed } = await supabase.storage
+          .from('opportunity-files')
+          .createSignedUrl(file.storage_path, 60)
+
+        if (!signed?.signedUrl) return null
+
+        const response = await fetch(signed.signedUrl)
+        const buffer = await response.buffer()
+
+        let content = ''
+        if (file.file_name.endsWith('.pdf')) {
+          const parsed = await pdfParse(buffer)
+          content = parsed.text
+        } else if (file.file_name.endsWith('.docx')) {
+          const { value } = await mammoth.extractRawText({ buffer })
+          content = value
+        } else {
+          content = 'Unsupported file type'
+        }
+
+        return {
+          type: 'file',
+          date: file.source_date || new Date().toISOString(),
+          text: `📎 ${file.file_name} (uploaded ${file.source_date}):\n${content}`
+        }
+      })
+    )
+
+    const timeline = [
+      ...meetings!.map(m => ({
+        type: 'meeting',
+        date: m.created_at,
+        text: `🗣 Meeting on ${new Date(m.created_at).toDateString()}:\n${m.transcript}`
+      })),
+      ...(extractedFiles.filter(Boolean) as { date: string, text: string }[])
+    ]
+
+    timeline.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
+    const combinedText = timeline.map(item => item.text).join('\n\n---\n\n')
+
+    const clarificationText = (clarifications || [])
+      .filter(c => c.user_response)
+      .map(c => `Client clarified: "${c.user_response}" (in response to: ${c.ai_question})`)
+      .join('\n')
 
     const gptResponse = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
       headers: {
-        Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
-        'Content-Type': 'application/json'
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${process.env.OPENAI_API_KEY}`
       },
       body: JSON.stringify({
-        model: 'gpt-3.5-turbo',
+        model: 'gpt-4-1106-preview',
         messages: [
           {
             role: 'system',
-            content: 'You are a helpful assistant that generates proposal summaries from text.'
+            content: `You are a helpful assistant that summarizes meetings and uploaded documents and extracts proposal items.\n\nYou must:\n- Generate a summary of the conversation and documents\n- List proposal items as bullet points starting with "-"\n- If any later document or upload contradicts earlier content, flag it clearly.\n- Respect user clarifications if provided.`
           },
           {
             role: 'user',
-            content: `Here is a transcript or proposal draft:\n\n${textContent}\n\nPlease extract a summary and clear bullet-point items under "Proposal items:"`
+            content: `Here is the full chronological record:\n${combinedText}\n\n${clarificationText}`
           }
-        ]
+        ],
+        temperature: 0.3,
+        max_tokens: 1000
       })
-    });
+    })
 
-    const data: OpenAIResponse = await gptResponse.json();
-    const gptMessage = data.choices?.[0]?.message?.content || '';
+    const data = await gptResponse.json()
+    const gptMessage = data.choices?.[0]?.message?.content || ''
+    const [summaryPart, itemsPart] = gptMessage.split(/(?:Proposal items:)/i)
+    const summary = summaryPart?.trim() || 'Summary unavailable.'
 
-    const [summaryPart, itemsPart] = gptMessage.split(/(?:Proposal items:)/i);
-    const summary = summaryPart?.trim() || 'Summary unavailable.';
-    const items = (itemsPart || '')
-      .split(/[\n•\-–●]+/)
-      .map(i => i.trim())
-      .filter(i => i.length > 5);
+    let proposal_items: string[] = []
+    if (itemsPart) {
+      const bulletItems = itemsPart.split("\n").filter(line => line.trim().startsWith("-"))
+      proposal_items = bulletItems.length > 0
+        ? bulletItems.map(item => item.trim())
+        : itemsPart.split(",").map(i => `- ${i.trim()}`).filter(i => i !== "-")
+    }
 
     const doc = new Document({
       sections: [
         {
           children: [
-            new Paragraph({ children: [new TextRun({ text: 'Proposal Summary', bold: true, size: 28 })] }),
-            new Paragraph(summary),
-            new Paragraph({ text: '', spacing: { after: 200 } }),
-            new Paragraph({ children: [new TextRun({ text: 'Proposal Items', bold: true, size: 28 })] }),
-            ...items.map(i => new Paragraph({ text: `• ${i}` }))
+            new Paragraph({ children: [new TextRun({ text: `${client!.name}`, bold: true, size: 28 })] }),
+            new Paragraph({ children: [new TextRun({ text: `Proposal for ${opportunity!.name}`, bold: true, size: 24 })] }),
+            new Paragraph({ text: '' }),
+            new Paragraph({ children: [new TextRun({ text: 'Overall Summary:', bold: true, underline: {} })] }),
+            new Paragraph({ text: summary }),
+            new Paragraph({ text: '' }),
+            new Paragraph({ children: [new TextRun({ text: 'Proposal Items:', bold: true, underline: {} })] }),
+            ...proposal_items.map(item => new Paragraph({ text: `- ${item.replace(/^-/, '').trim()}` }))
           ]
         }
       ]
-    });
+    })
 
-    const bufferDoc = await Packer.toBuffer(doc);
-
-    const { data: uploadData, error } = await supabase.storage
-      .from('proposals')
-      .upload(`generated/${Date.now()}.docx`, bufferDoc, {
-        contentType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
-      });
-
-    if (error) throw error;
-
-    return res.status(200).json({ summary, items, filePath: uploadData.path });
+    const buffer = await Packer.toBuffer(doc)
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document')
+    res.setHeader('Content-Disposition', 'attachment; filename=proposal.docx')
+    res.send(buffer)
   } catch (err: any) {
-    console.error('Proposal generation error:', err);
-    return res.status(500).json({ error: err.message || 'Internal Server Error' });
+    res.status(500).json({ error: 'Proposal generation failed', details: err.message })
   }
 }
-
