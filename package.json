@@ -15,7 +15,6 @@
     "@supabase/auth-helpers-nextjs": "^0.8.1",
     "@supabase/auth-helpers-react": "^0.2.2",
     "@microsoft/teams-js": "^2.16.0",
-    "@microsoft/microsoft-graph-client": "^3.0.4",
     "docx": "^8.0.3",
     "node-fetch": "^3.3.2",
     "mammoth": "^1.6.0",
@@ -23,7 +22,6 @@
     "formidable": "^3.5.0",
     "@azure/msal-node": "^3.5.1",
     "isomorphic-fetch": "^3.0.0",
-    "axios": "^1.7.2"
   },
   "devDependencies": {
     "typescript": "^5.2.2",
