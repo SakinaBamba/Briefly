@@ -12,7 +12,11 @@ const supabase = createClient(
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   const accessToken = await getGraphAccessToken()
   const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'
-  const userId = 'SakinaBamba@BrieflyAI.onmicrosoft.com' // Use full UPN or GUID
+  const userId = process.env.GRAPH_USER_ID // Use full UPN or GUID
+
+  if (!userId) {
+    return res.status(500).json({ error: 'GRAPH_USER_ID not configured' })
+  }
 
   if (!accessToken) {
     return res.status(500).json({ error: 'Failed to get Graph API token' })
@@ -38,10 +42,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     for (const meeting of endedMeetings) {
       const meetingId = meeting.id
-
-      // 2. Skip if already summarized
-      const { data: existing, error: checkError } = await supabase
-        .from('meetings')
         .select('id')
         .eq('external_meeting_id', meetingId)
         .maybeSingle()
