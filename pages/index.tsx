@@ -112,3 +112,79 @@ export default function HomePage() {
         <div className="space-y-4">
           {meetings.map((meeting) => (
             <div key={meeting.id} className="p-4 border rounded-lg">
+                            <h2 className="font-semibold">{meeting.title}</h2>
+              <p className="mt-1 text-sm text-gray-700">{meeting.summary}</p>
+              {meeting.client_id ? (
+                <p className="mt-2 text-sm text-gray-500">
+                  Assigned to{' '}
+                  {clients.find((c) => c.id === meeting.client_id)?.client_name || 'client'}
+                </p>
+              ) : (
+                <div className="mt-2">
+                  {assignMeetingId === meeting.id ? (
+                    <div className="flex items-center space-x-2">
+                      <select
+                        className="border rounded px-2 py-1"
+                        value={selectedClientId ?? ''}
+                        onChange={(e) => setSelectedClientId(e.target.value)}
+                      >
+                        <option value="">Select client</option>
+                        {clients.map((c) => (
+                          <option key={c.id} value={c.id}>
+                            {c.client_name}
+                          </option>
+                        ))}
+                      </select>
+                      <button
+                        className="px-2 py-1 bg-blue-600 text-white rounded"
+                        onClick={async () => {
+                          if (!selectedClientId) return
+                          await fetch('/api/assignMeetingToClient', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                              meetingId: meeting.id,
+                              clientId: selectedClientId,
+                            }),
+                          })
+                          setMeetings((prev) =>
+                            prev.map((m) =>
+                              m.id === meeting.id ? { ...m, client_id: selectedClientId } : m
+                            )
+                          )
+                          setAssignMeetingId(null)
+                          setSelectedClientId(null)
+                        }}
+                      >
+                        Save
+                      </button>
+                      <button
+                        className="px-2 py-1"
+                        onClick={() => {
+                          setAssignMeetingId(null)
+                          setSelectedClientId(null)
+                        }}
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => {
+                        setAssignMeetingId(meeting.id)
+                        setSelectedClientId(null)
+                      }}
+                      className="mt-2 px-2 py-1 bg-blue-500 text-white rounded"
+                    >
+                      Assign to Client
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
