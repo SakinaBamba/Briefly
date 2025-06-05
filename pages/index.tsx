@@ -16,6 +16,7 @@ interface Client {
   client_name: string
 }
 
+
 export const getServerSideProps: GetServerSideProps = async (ctx) => {
   const supabase = createServerSupabaseClient(ctx)
 
