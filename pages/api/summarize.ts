@@ -1,7 +1,3 @@
-import { NextApiRequest, NextApiResponse } from 'next'
-import { createClient } from '@supabase/supabase-js'
-import axios from 'axios'
-
 // Initialize Supabase client
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -27,7 +23,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     // 2️⃣ Call your summarizeMeeting Edge Function
     const summarizeResp = await axios.post(
-      `${process.env.SUPABASE_URL}/functions/v1/summarizeMeeting`,
+      `${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/summarizeMeeting`,
       {
         payload: { text: transcriptText, user_id }
       },
