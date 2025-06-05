@@ -1,19 +1,11 @@
-import type { AppProps } from 'next/app'
-import { useState } from 'react'
-import { createBrowserClient, SessionContextProvider } from '@supabase/ssr'
-import '../styles/globals.css'
+import { NextApiRequest, NextApiResponse } from 'next'
+import { createClient } from '@supabase/supabase-js'
+import { Document, Packer, Paragraph, TextRun } from 'docx'
+import fetch from 'node-fetch'
+import mammoth from 'mammoth'
+import pdfParse from 'pdf-parse'
 
-export default function MyApp({ Component, pageProps }: AppProps) {
-  const [supabase] = useState(() =>
-    createBrowserClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-    )
-  )
-
-  return (
-    <SessionContextProvider supabaseClient={supabase} initialSession={pageProps.initialSession}>
-      <Component {...pageProps} />
-    </SessionContextProvider>
-  )
-}
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
+)
