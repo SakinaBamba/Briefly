@@ -25,7 +25,7 @@ export const getServerSideProps: GetServerSideProps = async (ctx) => {
   } = await supabase.auth.getSession()
 
   if (!session) {
-      return {
+       return {
       redirect: {
         destination: '/login',
         permanent: false,
@@ -78,7 +78,9 @@ export default function HomePage() {
       const { data } = await supabase.auth.getSession()
       const uid = data.session?.user.id || null
       setUserId(uid)
-        const json = await res.json()
+      if (uid) {
+        const response = await fetch(`/api/getClients?organizationId=${uid}`)
+        const json = await response.json()
         setClients(json.clients)
       }
     }
@@ -104,6 +106,7 @@ export default function HomePage() {
         >
           Sign Out
         </button>
+
       </header>
 
       {meetings.length === 0 ? (
