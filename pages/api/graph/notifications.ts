@@ -1,5 +1,6 @@
 import type { NextApiRequest, NextApiResponse } from 'next'
 
+
 // Microsoft Graph webhook handler. Graph may call this endpoint with a
 // `validationToken` query parameter for subscription validation. For normal
 // POST notifications we simply acknowledge receipt.
