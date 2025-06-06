@@ -5,6 +5,7 @@ import fetch from 'node-fetch'
 import mammoth from 'mammoth'
 import pdfParse from 'pdf-parse'
 
+
 interface ChatCompletionResponse {
   choices?: {
     message?: {
