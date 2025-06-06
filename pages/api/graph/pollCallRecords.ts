@@ -42,6 +42,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     for (const meeting of endedMeetings) {
       const meetingId = meeting.id
+
+      // Check if this meeting was already summarized
+      const { data: existing, error: checkError } = await supabase
+        .from('meetings')
         .select('id')
         .eq('external_meeting_id', meetingId)
         .maybeSingle()
