@@ -25,7 +25,7 @@ export const getServerSideProps: GetServerSideProps = async (ctx) => {
   } = await supabase.auth.getSession()
 
   if (!session) {
-    return {
+     return {
       redirect: {
         destination: '/login',
         permanent: false,
@@ -50,7 +50,7 @@ export default function HomePage() {
   useEffect(() => {
     const handleOAuthCallback = async () => {
       if (typeof window !== 'undefined' && window.location.href.includes('code=')) {
-        const { error } = await supabase.auth.getSessionFromUrl();
+        const { error } = await supabase.auth.exchangeCodeForSession();
         if (error) {
           console.error("Error exchanging code:", error);
         } else {
