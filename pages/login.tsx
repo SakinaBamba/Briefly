@@ -17,9 +17,10 @@ export default function Login() {
   }, [router, supabase])
 
   const signIn = async () => {
+    const redirectUrl = `${process.env.NEXT_PUBLIC_APP_URL || window.location.origin}/`
     await supabase.auth.signInWithOAuth({
       provider: 'azure',
-      options: { redirectTo: `${window.location.origin}/` }
+      options: { redirectTo: redirectUrl }
     })
   }
 
