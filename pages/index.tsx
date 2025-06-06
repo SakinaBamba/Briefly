@@ -25,7 +25,7 @@ export const getServerSideProps: GetServerSideProps = async (ctx) => {
   } = await supabase.auth.getSession()
 
   if (!session) {
-     return {
+      return {
       redirect: {
         destination: '/login',
         permanent: false,
@@ -50,7 +50,9 @@ export default function HomePage() {
   useEffect(() => {
     const handleOAuthCallback = async () => {
       if (typeof window !== 'undefined' && window.location.href.includes('code=')) {
-        const { error } = await supabase.auth.exchangeCodeForSession();
+        const { error } = await supabase.auth.exchangeCodeForSession(
+          window.location.href
+        );
         if (error) {
           console.error("Error exchanging code:", error);
         } else {
@@ -76,8 +78,6 @@ export default function HomePage() {
       const { data } = await supabase.auth.getSession()
       const uid = data.session?.user.id || null
       setUserId(uid)
-      if (uid) {
-        const res = await fetch(`/api/getClients?organizationId=${uid}`)
         const json = await res.json()
         setClients(json.clients)
       }
