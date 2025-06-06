@@ -23,6 +23,7 @@
     "isomorphic-fetch": "^3.0.0",
     "axios": "^1.6.0"
   },
+  
   "devDependencies": {
     "typescript": "^5.2.2",
     "@types/react": "^18.2.21",
