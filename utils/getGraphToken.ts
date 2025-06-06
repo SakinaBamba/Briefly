@@ -4,7 +4,6 @@ export async function getGraphAccessToken(): Promise<string | null> {
   const clientId = process.env.AZURE_CLIENT_ID
   const clientSecret = process.env.AZURE_CLIENT_SECRET
 
-  
   const url = `https://login.microsoftonline.com/${tenantId}/oauth2/v2.0/token`
   const params = new URLSearchParams()
   params.append('client_id', clientId || '')
