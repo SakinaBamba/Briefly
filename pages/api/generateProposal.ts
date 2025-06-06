@@ -36,9 +36,68 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       .eq('id', opportunity_id)
       .single()
 
-    const { data: client } = await supabase
+    const clientRes = await supabase
       .from('clients')
-@@ -92,51 +100,51 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
+      .select('name')
+      .eq('id', opportunity!.client_id)
+      .single()
+    const client = clientRes.data
+
+    const { data: files } = await supabase
+      .from('opportunity_files')
+      .select('*')
+      .eq('opportunity_id', opportunity_id)
+
+    const { data: clarifications } = await supabase
+      .from('clarifications')
+      .select('*')
+      .eq('opportunity_id', opportunity_id)
+
+    const extractedFiles = await Promise.all(
+      (files || []).map(async file => {
+        const { data: signed } = await supabase.storage
+          .from('opportunity-files')
+          .createSignedUrl(file.storage_path, 60)
+
+        if (!signed?.signedUrl) return null
+
+        const response = await fetch(signed.signedUrl)
+        const buffer = await response.buffer()
+
+        let content = ''
+        if (file.file_name.endsWith('.pdf')) {
+          const parsed = await pdfParse(buffer)
+          content = parsed.text
+        } else if (file.file_name.endsWith('.docx')) {
+          const { value } = await mammoth.extractRawText({ buffer })
+          content = value
+        } else {
+          content = 'Unsupported file type'
+        }
+
+        return {
+          type: 'file',
+          date: file.source_date || new Date().toISOString(),
+          text: `📎 ${file.file_name} (uploaded ${file.source_date}):\n${content}`
+        }
+      })
+    )
+
+    const timeline = [
+      ...meetings!.map(m => ({
+        type: 'meeting',
+        date: m.created_at,
+        text: `🗣 Meeting on ${new Date(m.created_at).toDateString()}:\n${m.transcript}`
+      })),
+      ...(extractedFiles.filter(Boolean) as { date: string, text: string }[])
+    ]
+
+    timeline.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
+    const combinedText = timeline.map(item => item.text).join('\n\n---\n\n')
+
+    const clarificationText = (clarifications || [])
+      .filter(c => c.user_response)
+      .map(c => `Client clarified: "${c.user_response}" (in response to: ${c.ai_question})`)
       .join('\n')
 
     const gptResponse = await fetch('https://api.openai.com/v1/chat/completions', {
@@ -90,6 +149,14 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             new Paragraph({ children: [new TextRun({ text: 'Proposal Items:', bold: true, underline: {} })] }),
             ...proposal_items.map(item => new Paragraph({ text: `- ${item.replace(/^-/, '').trim()}` }))
           ]
+        }
+      ]
+    })
+
+    const buffer = await Packer.toBuffer(doc)
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document')
+    res.setHeader('Content-Disposition', 'attachment; filename=proposal.docx')
+    res.send(buffer)
   } catch (err: any) {
     res.status(500).json({ error: 'Proposal generation failed', details: err.message })
   }
