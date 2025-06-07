@@ -1,129 +1,105 @@
-// pages/api/graph/pollCallRecords.ts
 import type { NextApiRequest, NextApiResponse } from 'next'
 import { createClient } from '@supabase/supabase-js'
 import { getGraphAccessToken } from '../../../utils/getGraphToken'
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY! // Must use service role to insert
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
 )
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   const accessToken = await getGraphAccessToken()
-  const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'
-  const userId = process.env.GRAPH_USER_ID // Use full UPN or GUID
+  const userId = process.env.GRAPH_USER_ID
 
-  if (!userId) {
-    return res.status(500).json({ error: 'GRAPH_USER_ID not configured' })
-  }
-
-  if (!accessToken) {
-    return res.status(500).json({ error: 'Failed to get Graph API token' })
-  }
+  if (!userId) return res.status(500).json({ error: 'GRAPH_USER_ID not configured' })
+  if (!accessToken) return res.status(500).json({ error: 'Failed to get Graph API token' })
 
   try {
-    // 1. Fetch ended meetings
-    const meetingsRes = await fetch(`https://graph.microsoft.com/v1.0/users/${userId}/onlineMeetings`, {
+    // 1️⃣ Fetch call records for the tenant/user
+    const recordsRes = await fetch('https://graph.microsoft.com/v1.0/communications/callRecords', {
       headers: { Authorization: `Bearer ${accessToken}` }
     })
-
-    const meetingsData = await meetingsRes.json()
-
-    if (!meetingsData.value) {
-      return res.status(200).json({ message: 'No meetings found' })
-    }
-
-    const endedMeetings = meetingsData.value.filter(
-      (m: any) => m.endDateTime && new Date(m.endDateTime) < new Date()
-    )
+    const recordsData = await recordsRes.json()
+    const records = recordsData.value || []
 
     const results: any[] = []
 
-    for (const meeting of endedMeetings) {
-      const meetingId = meeting.id
+    for (const record of records) {
+      // Process only ended calls
+      if (!record.endDateTime || new Date(record.endDateTime) > new Date()) continue
+      const joinWebUrl: string | undefined = record.joinWebUrl
+      if (!joinWebUrl) continue
 
-      // Check if this meeting was already summarized
-      const { data: existing, error: checkError } = await supabase
+      // 2️⃣ Find the online meeting using the join URL
+      const encodedUrl = encodeURIComponent(joinWebUrl)
+      const meetingsRes = await fetch(
+        `https://graph.microsoft.com/v1.0/users/${userId}/onlineMeetings?$filter=joinWebUrl%20eq%20'${encodedUrl}'`,
+        { headers: { Authorization: `Bearer ${accessToken}` } }
+      )
+      const meetingsData = await meetingsRes.json()
+      const onlineMeeting = meetingsData.value?.[0]
+      if (!onlineMeeting) {
+        results.push({ recordId: record.id, status: 'Online meeting not found' })
+        continue
+      }
+      const meetingId: string = onlineMeeting.id
+
+      // Check if meeting already stored
+      const { data: existing } = await supabase
         .from('meetings')
         .select('id')
         .eq('external_meeting_id', meetingId)
         .maybeSingle()
-
-      if (checkError) {
-        console.error('Supabase check error:', checkError)
-        results.push({ meetingId, status: 'Check failed', error: checkError.message })
-        continue
-      }
-
       if (existing) {
-        results.push({ meetingId, status: 'Already summarized' })
+        results.push({ meetingId, status: 'Already processed' })
         continue
       }
 
-      // 3. Fetch transcript metadata
-      const transcriptRes = await fetch(
+      // 3️⃣ Fetch transcript list
+      const transcriptsRes = await fetch(
         `https://graph.microsoft.com/v1.0/users/${userId}/onlineMeetings/${meetingId}/transcripts`,
         { headers: { Authorization: `Bearer ${accessToken}` } }
       )
-
-      const transcriptData = await transcriptRes.json()
-      const transcriptItems = transcriptData.value || []
-
-      if (transcriptItems.length === 0) {
-        results.push({ meetingId, status: 'No transcript yet' })
+      const transcriptsData = await transcriptsRes.json()
+      const transcript = transcriptsData.value?.[0]
+      if (!transcript) {
+        results.push({ meetingId, status: 'No transcript available' })
         continue
       }
+      const transcriptId: string = transcript.id
 
-      const transcriptId = transcriptItems[0].id
-
-      // 4. Get transcript content
+      // 4️⃣ Download transcript content
       const contentRes = await fetch(
-        `https://graph.microsoft.com/v1.0/users/${userId}/onlineMeetings/${meetingId}/transcripts/${transcriptId}/content`,
-        {
-          headers: { Authorization: `Bearer ${accessToken}` }
-        }
+        `https://graph.microsoft.com/v1.0/users/${userId}/onlineMeetings/${meetingId}/transcripts/${transcriptId}/content?$format=text/vtt`,
+        { headers: { Authorization: `Bearer ${accessToken}` } }
       )
-
-      const contentData = await contentRes.json()
-      const transcriptText = contentData?.content || ''
-
+      const transcriptText = await contentRes.text()
       if (!transcriptText) {
-        results.push({ meetingId, status: 'Transcript content missing' })
+        results.push({ meetingId, status: 'Empty transcript' })
         continue
       }
 
-      // 5. Trigger summarization
-      const summarizeRes = await fetch(`${baseUrl}/api/summarize`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          transcript: transcriptText,
-          user_id: 'dummy-user-id' // Replace later with dynamic user detection
-        })
-      })
-
-      const summarizeResult = await summarizeRes.json()
-
-      // 6. Store meeting in Supabase
-      await supabase.from('meetings').insert({
+      // 5️⃣ Store in Supabase
+      const { error } = await supabase.from('meetings').insert({
         external_meeting_id: meetingId,
+        user_id: userId,
         transcript: transcriptText,
-        summary: summarizeResult.summary || '',
-        proposal_items: summarizeResult.proposal_items || [],
+        summary: null,
+        proposal_items: null,
         created_at: new Date().toISOString()
       })
 
-      results.push({
-        meetingId,
-        status: 'Summarized',
-        summarizeResult
-      })
+      if (error) {
+        results.push({ meetingId, status: 'Supabase insert failed', error })
+        continue
+      }
+
+      results.push({ meetingId, status: 'Stored transcript' })
     }
 
     return res.status(200).json({ results })
-  } catch (error: any) {
-    console.error('Polling error:', error)
-    return res.status(500).json({ error: 'Polling failed', details: error.message })
+  } catch (err: any) {
+    console.error('Polling error:', err)
+    return res.status(500).json({ error: 'Polling failed', details: err.message })
   }
 }
-
