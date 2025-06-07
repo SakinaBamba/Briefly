@@ -29,6 +29,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     if (lastProcessed) {
       const filter = encodeURIComponent(`endDateTime gt ${lastProcessed}`)
       url += `?$filter=${filter}`
+    } else {
+      url += '?$top=1&$orderby=endDateTime%20desc'
     }
 
     const recordsRes = await fetch(url, {
@@ -57,7 +59,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         results.push({ recordId: record.id, status: 'Online meeting not found' })
         continue
       }
-@@ -72,34 +87,42 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
+@@ -72,34 +89,42 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       const contentRes = await fetch(
         `https://graph.microsoft.com/v1.0/users/${userId}/onlineMeetings/${meetingId}/transcripts/${transcriptId}/content?$format=text/vtt`,
         { headers: { Authorization: `Bearer ${accessToken}` } }
