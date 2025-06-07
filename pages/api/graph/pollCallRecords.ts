@@ -32,7 +32,7 @@ export default async function handler(
 
     // 1️⃣ Fetch call records after the last processed timestamp
     const url = new URL(
-      "https://graph.microsoft.com/v1.0/communications/callRecords",
+          "https://graph.microsoft.com/v1.0/communications/callRecords",
     );
     if (lastProcessed) {
       url.searchParams.set("$filter", `endDateTime gt ${lastProcessed}`);
@@ -57,9 +57,11 @@ export default async function handler(
       if (!joinWebUrl) continue;
 
       // 2️⃣ Find the online meeting using the join URL
-      const encodedUrl = encodeURIComponent(joinWebUrl);
+      // Insert the join URL directly in the filter. Any single quotes in the
+      // URL must be escaped by doubling them per the OData specification.
+      const escapedUrl = joinWebUrl.replace(/'/g, "''");
       const meetingsRes = await fetch(
-        `https://graph.microsoft.com/v1.0/users/${userId}/onlineMeetings?$filter=joinWebUrl%20eq%20'${encodedUrl}'`,
+        `https://graph.microsoft.com/v1.0/users/${userId}/onlineMeetings?$filter=joinWebUrl%20eq%20'${escapedUrl}'`,
         { headers: { Authorization: `Bearer ${accessToken}` } },
       );
       const meetingsData = await meetingsRes.json();
