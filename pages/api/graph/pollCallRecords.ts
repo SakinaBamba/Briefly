@@ -25,12 +25,14 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const lastProcessed: string | undefined = stateRow?.value
 
     // 1️⃣ Fetch call records after the last processed timestamp
-    let url = 'https://graph.microsoft.com/v1.0/communications/callRecords'
+    const url = new URL(
+      'https://graph.microsoft.com/v1.0/communications/callRecords'
+    )
     if (lastProcessed) {
-      const filter = encodeURIComponent(`endDateTime gt ${lastProcessed}`)
-      url += `?$filter=${filter}`
+      url.searchParams.set('$filter', `endDateTime gt ${lastProcessed}`)
     } else {
-      url += '?$top=1&$orderby=endDateTime%20desc'
+      url.searchParams.set('$top', '1')
+      url.searchParams.set('$orderby', 'endDateTime desc')
     }
 
     const recordsRes = await fetch(url, {
@@ -59,7 +61,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         results.push({ recordId: record.id, status: 'Online meeting not found' })
         continue
       }
-@@ -72,34 +89,42 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
+@@ -72,34 +91,42 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       const contentRes = await fetch(
         `https://graph.microsoft.com/v1.0/users/${userId}/onlineMeetings/${meetingId}/transcripts/${transcriptId}/content?$format=text/vtt`,
         { headers: { Authorization: `Bearer ${accessToken}` } }
