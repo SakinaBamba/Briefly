@@ -15,8 +15,23 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   if (!accessToken) return res.status(500).json({ error: 'Failed to get Graph API token' })
 
   try {
-    // 1️⃣ Fetch call records for the tenant/user
-    const recordsRes = await fetch('https://graph.microsoft.com/v1.0/communications/callRecords', {
+    // Read the timestamp of the last processed call from Supabase
+    const { data: stateRow } = await supabase
+      .from('processing_state')
+      .select('value')
+      .eq('key', 'last_call_end')
+      .maybeSingle()
+
+    const lastProcessed: string | undefined = stateRow?.value
+
+    // 1️⃣ Fetch call records after the last processed timestamp
+    let url = 'https://graph.microsoft.com/v1.0/communications/callRecords'
+    if (lastProcessed) {
+      const filter = encodeURIComponent(`endDateTime gt ${lastProcessed}`)
+      url += `?$filter=${filter}`
+    }
+
+    const recordsRes = await fetch(url, {
       headers: { Authorization: `Bearer ${accessToken}` }
     })
     const recordsData = await recordsRes.json()
@@ -42,33 +57,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         results.push({ recordId: record.id, status: 'Online meeting not found' })
         continue
       }
-      const meetingId: string = onlineMeeting.id
-
-      // Check if meeting already stored
-      const { data: existing } = await supabase
-        .from('meetings')
-        .select('id')
-        .eq('external_meeting_id', meetingId)
-        .maybeSingle()
-      if (existing) {
-        results.push({ meetingId, status: 'Already processed' })
-        continue
-      }
-
-      // 3️⃣ Fetch transcript list
-      const transcriptsRes = await fetch(
-        `https://graph.microsoft.com/v1.0/users/${userId}/onlineMeetings/${meetingId}/transcripts`,
-        { headers: { Authorization: `Bearer ${accessToken}` } }
-      )
-      const transcriptsData = await transcriptsRes.json()
-      const transcript = transcriptsData.value?.[0]
-      if (!transcript) {
-        results.push({ meetingId, status: 'No transcript available' })
-        continue
-      }
-      const transcriptId: string = transcript.id
-
-      // 4️⃣ Download transcript content
+@@ -72,34 +87,42 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       const contentRes = await fetch(
         `https://graph.microsoft.com/v1.0/users/${userId}/onlineMeetings/${meetingId}/transcripts/${transcriptId}/content?$format=text/vtt`,
         { headers: { Authorization: `Bearer ${accessToken}` } }
@@ -92,6 +81,14 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       if (error) {
         results.push({ meetingId, status: 'Supabase insert failed', error })
         continue
+      }
+
+      // Update last processed timestamp in Supabase
+      if (record.endDateTime) {
+        await supabase.from('processing_state').upsert({
+          key: 'last_call_end',
+          value: record.endDateTime
+        })
       }
 
       results.push({ meetingId, status: 'Stored transcript' })
