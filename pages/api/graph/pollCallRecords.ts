@@ -15,7 +15,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   if (!accessToken) return res.status(500).json({ error: 'Failed to get Graph API token' })
 
   try {
-    // Read the timestamp of the last processed call from Supabase
+    // Read the timestamp of the last processed call from Supabase.
+    // The `processing_state` table keeps simple key/value pairs.
     const { data: stateRow } = await supabase
       .from('processing_state')
       .select('value')
@@ -61,7 +62,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         results.push({ recordId: record.id, status: 'Online meeting not found' })
         continue
       }
-@@ -72,34 +91,42 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
+@@ -72,34 +92,42 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       const contentRes = await fetch(
         `https://graph.microsoft.com/v1.0/users/${userId}/onlineMeetings/${meetingId}/transcripts/${transcriptId}/content?$format=text/vtt`,
         { headers: { Authorization: `Bearer ${accessToken}` } }
