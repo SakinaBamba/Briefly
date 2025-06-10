@@ -23,6 +23,7 @@ export default async function handler(
 
   try {
     const results: any[] = [];
+    let hasInsertError = false;
 
     // Previously a test row was inserted on each run to verify Supabase
     // connectivity. This caused foreign key violations if GRAPH_USER_ID did not
@@ -127,6 +128,7 @@ export default async function handler(
       });
 
       if (error) {
+        hasInsertError = true;
         results.push({ meetingId, status: "Supabase insert failed", error });
         continue;
       }
@@ -142,7 +144,15 @@ export default async function handler(
       results.push({ meetingId, status: "Stored transcript" });
     }
 
-    return res.status(200).json({ results });
+    
+        if (results.length === 0) {
+      // Surface a message when no meetings were processed so callers know
+      // nothing was inserted during this run.
+          results.push({ status: "No new meetings to process" });
+    }
+
+    const statusCode = hasInsertError ? 500 : 200;
+    return res.status(statusCode).json({ results });
   } catch (err: any) {
     console.error("Polling error:", err);
     return res
