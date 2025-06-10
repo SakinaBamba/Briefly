@@ -12,6 +12,8 @@ export default async function handler(
   res: NextApiResponse,
 ) {
   const accessToken = await getGraphAccessToken();
+  // ID of a user in the `auth.users` table. Required for inserting meeting
+  // records.
   const userId = process.env.GRAPH_USER_ID;
 
   if (!userId)
@@ -22,21 +24,9 @@ export default async function handler(
   try {
     const results: any[] = [];
 
-    // Insert a simple row on every run to verify Supabase connectivity
-    const { error: testInsertError } = await supabase.from("meetings").insert({
-      external_meeting_id: `test-${Date.now()}`,
-      user_id: userId,
-      transcript: "test",
-      summary: null,
-      proposal_items: null,
-      created_at: new Date().toISOString(),
-    });
-
-    if (testInsertError) {
-      results.push({ meetingId: "test", status: "Supabase test insert failed", error: testInsertError });
-    } else {
-      results.push({ meetingId: "test", status: "Supabase test insert successful" });
-    }
+    // Previously a test row was inserted on each run to verify Supabase
+    // connectivity. This caused foreign key violations if GRAPH_USER_ID did not
+    // match an existing `auth.users` entry. The test insert has been removed.
 
     // Read the timestamp of the last processed call from Supabase.
     // The `processing_state` table keeps simple key/value pairs.
