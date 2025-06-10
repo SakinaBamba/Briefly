@@ -20,6 +20,24 @@ export default async function handler(
     return res.status(500).json({ error: "Failed to get Graph API token" });
 
   try {
+    const results: any[] = [];
+
+    // Insert a simple row on every run to verify Supabase connectivity
+    const { error: testInsertError } = await supabase.from("meetings").insert({
+      external_meeting_id: `test-${Date.now()}`,
+      user_id: userId,
+      transcript: "test",
+      summary: null,
+      proposal_items: null,
+      created_at: new Date().toISOString(),
+    });
+
+    if (testInsertError) {
+      results.push({ meetingId: "test", status: "Supabase test insert failed", error: testInsertError });
+    } else {
+      results.push({ meetingId: "test", status: "Supabase test insert successful" });
+    }
+
     // Read the timestamp of the last processed call from Supabase.
     // The `processing_state` table keeps simple key/value pairs.
     const { data: stateRow } = await supabase
@@ -46,8 +64,6 @@ export default async function handler(
     });
     const recordsData = await recordsRes.json();
     const records = recordsData.value || [];
-
-    const results: any[] = [];
 
     for (const record of records) {
       // Process only ended calls
@@ -144,3 +160,4 @@ export default async function handler(
       .json({ error: "Polling failed", details: err.message });
   }
 }
+
