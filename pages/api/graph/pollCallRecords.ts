@@ -7,13 +7,8 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!,
 );
 
-export default async function handler(
-  req: NextApiRequest,
-  res: NextApiResponse,
-) {
+export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   const accessToken = await getGraphAccessToken();
-  // ID of a user in the `auth.users` table. Required for inserting meeting
-  // records.
   const userId = process.env.GRAPH_USER_ID;
 
   if (!userId)
@@ -25,12 +20,6 @@ export default async function handler(
     const results: any[] = [];
     let hasInsertError = false;
 
-    // Previously a test row was inserted on each run to verify Supabase
-    // connectivity. This caused foreign key violations if GRAPH_USER_ID did not
-    // match an existing `auth.users` entry. The test insert has been removed.
-
-    // Read the timestamp of the last processed call from Supabase.
-    // The `processing_state` table keeps simple key/value pairs.
     const { data: stateRow } = await supabase
       .from("processing_state")
       .select("value")
@@ -39,10 +28,7 @@ export default async function handler(
 
     const lastProcessed: string | undefined = stateRow?.value;
 
-    // 1️⃣ Fetch call records after the last processed timestamp
-    const url = new URL(
-          "https://graph.microsoft.com/v1.0/communications/callRecords",
-    );
+    const url = new URL("https://graph.microsoft.com/v1.0/communications/callRecords");
     if (lastProcessed) {
       url.searchParams.set("$filter", `endDateTime gt ${lastProcessed}`);
     } else {
@@ -56,73 +42,76 @@ export default async function handler(
     const recordsData = await recordsRes.json();
     const records = recordsData.value || [];
 
-    for (const record of records) {
-      // Process only ended calls
-      if (!record.endDateTime || new Date(record.endDateTime) > new Date())
-        continue;
-      const joinWebUrl: string | undefined = record.joinWebUrl;
-      if (!joinWebUrl) continue;
+    console.log("📞 Total call records fetched:", records.length);
 
-      // 2️⃣ Find the online meeting using the join URL
-      // Insert the join URL directly in the filter. Any single quotes in the
-      // URL must be escaped by doubling them per the OData specification. The
-      // final value is URL encoded to prevent special characters from breaking
-      // the query.
-      const escapedUrl = encodeURIComponent(joinWebUrl.replace(/'/g, "''"));
+    for (const record of records) {
+      console.log(`➡️ Processing record ${record.id} ended at ${record.endDateTime}`);
+
+      if (!record.endDateTime || new Date(record.endDateTime) > new Date()) {
+        console.log("⏭️ Skipped: Future or missing endDateTime");
+        continue;
+      }
+
+      const joinWebUrl: string | undefined = record.joinWebUrl;
+      if (!joinWebUrl) {
+        console.log("⏭️ Skipped: No joinWebUrl");
+        continue;
+      }
+
+      const escapedUrl = encodeURIComponent(joinWebUrl.replace(/\'/g, "''"));
       const meetingsUrl = new URL(
-        `https://graph.microsoft.com/v1.0/users/${userId}/onlineMeetings`,
+        `https://graph.microsoft.com/v1.0/users/${userId}/onlineMeetings`
       );
       meetingsUrl.search = `$filter=joinWebUrl%20eq%20'${escapedUrl}'`;
+
       const meetingsRes = await fetch(meetingsUrl.toString(), {
         headers: { Authorization: `Bearer ${accessToken}` },
       });
       const meetingsData = await meetingsRes.json();
       const onlineMeeting = meetingsData.value?.[0];
       if (!onlineMeeting) {
-        results.push({
-          recordId: record.id,
-          status: "Online meeting not found",
-        });
+        console.log("❌ No matching online meeting for join URL.");
+        results.push({ recordId: record.id, status: "Online meeting not found" });
         continue;
       }
+
       const meetingId: string = onlineMeeting.id;
 
-      // Check if meeting already stored
       const { data: existing } = await supabase
         .from("meetings")
         .select("id")
         .eq("external_meeting_id", meetingId)
         .maybeSingle();
       if (existing) {
+        console.log("🟡 Already processed meeting:", meetingId);
         results.push({ meetingId, status: "Already processed" });
         continue;
       }
 
-      // 3️⃣ Fetch transcript list
       const transcriptsRes = await fetch(
         `https://graph.microsoft.com/v1.0/users/${userId}/onlineMeetings/${meetingId}/transcripts`,
-        { headers: { Authorization: `Bearer ${accessToken}` } },
+        { headers: { Authorization: `Bearer ${accessToken}` } }
       );
       const transcriptsData = await transcriptsRes.json();
       const transcript = transcriptsData.value?.[0];
       if (!transcript) {
+        console.log("📭 No transcript found for meeting:", meetingId);
         results.push({ meetingId, status: "No transcript available" });
         continue;
       }
-      const transcriptId: string = transcript.id;
 
-      // 4️⃣ Download transcript content
+      const transcriptId: string = transcript.id;
       const contentRes = await fetch(
         `https://graph.microsoft.com/v1.0/users/${userId}/onlineMeetings/${meetingId}/transcripts/${transcriptId}/content?$format=text/vtt`,
-        { headers: { Authorization: `Bearer ${accessToken}` } },
+        { headers: { Authorization: `Bearer ${accessToken}` } }
       );
       const transcriptText = await contentRes.text();
       if (!transcriptText) {
+        console.log("📭 Transcript content is empty");
         results.push({ meetingId, status: "Empty transcript" });
         continue;
       }
 
-      // 5️⃣ Store in Supabase
       const { error } = await supabase.from("meetings").insert({
         external_meeting_id: meetingId,
         user_id: userId,
@@ -133,12 +122,12 @@ export default async function handler(
       });
 
       if (error) {
+        console.error("❌ Insert error:", error);
         hasInsertError = true;
         results.push({ meetingId, status: "Supabase insert failed", error });
         continue;
       }
 
-      // Update last processed timestamp in Supabase
       if (record.endDateTime) {
         await supabase.from("processing_state").upsert({
           key: "last_call_end",
@@ -149,19 +138,15 @@ export default async function handler(
       results.push({ meetingId, status: "Stored transcript" });
     }
 
-        if (results.length === 0) {
-      // Surface a message when no meetings were processed so callers know
-      // nothing was inserted during this run.
-          results.push({ status: "No new meetings to process" });
+    if (results.length === 0) {
+      results.push({ status: "No new meetings to process" });
     }
 
     const statusCode = hasInsertError ? 500 : 200;
     return res.status(statusCode).json({ results });
   } catch (err: any) {
     console.error("Polling error:", err);
-    return res
-      .status(500)
-      .json({ error: "Polling failed", details: err.message });
+    return res.status(500).json({ error: "Polling failed", details: err.message });
   }
 }
 
