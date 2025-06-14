@@ -8,11 +8,15 @@ const supabase = createClient(
 );
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  const accessToken = await getGraphAccessToken();
-  const userId = process.env.GRAPH_USER_ID;
+  const graphUserId = process.env.GRAPH_USER_ID;
+  const supabaseUserId = process.env.SUPABASE_USER_ID;
 
-  if (!userId)
+  if (!graphUserId)
     return res.status(500).json({ error: "GRAPH_USER_ID not configured" });
+  if (!supabaseUserId)
+    return res.status(500).json({ error: "SUPABASE_USER_ID not configured" });
+
+  const accessToken = await getGraphAccessToken();
   if (!accessToken)
     return res.status(500).json({ error: "Failed to get Graph API token" });
 
@@ -20,6 +24,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const results: any[] = [];
     let hasInsertError = false;
 
+    // Read the last processed timestamp
     const { data: stateRow } = await supabase
       .from("processing_state")
       .select("value")
@@ -28,6 +33,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     const lastProcessed: string | undefined = stateRow?.value;
 
+    // Fetch call records
     const url = new URL("https://graph.microsoft.com/v1.0/communications/callRecords");
     if (lastProcessed) {
       url.searchParams.set("$filter", `endDateTime gt ${lastProcessed}`);
@@ -36,7 +42,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       url.searchParams.set("$orderby", "endDateTime desc");
     }
 
-    const recordsRes = await fetch(url, {
+    const recordsRes = await fetch(url.toString(), {
       headers: { Authorization: `Bearer ${accessToken}` },
     });
     const recordsData = await recordsRes.json();
@@ -58,9 +64,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         continue;
       }
 
-      const escapedUrl = encodeURIComponent(joinWebUrl.replace(/\'/g, "''"));
+      const escapedUrl = encodeURIComponent(joinWebUrl.replace(/'/g, "''"));
       const meetingsUrl = new URL(
-        `https://graph.microsoft.com/v1.0/users/${userId}/onlineMeetings`
+        `https://graph.microsoft.com/v1.0/users/${graphUserId}/onlineMeetings`
       );
       meetingsUrl.search = `$filter=joinWebUrl%20eq%20'${escapedUrl}'`;
 
@@ -89,7 +95,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       }
 
       const transcriptsRes = await fetch(
-        `https://graph.microsoft.com/v1.0/users/${userId}/onlineMeetings/${meetingId}/transcripts`,
+        `https://graph.microsoft.com/v1.0/users/${graphUserId}/onlineMeetings/${meetingId}/transcripts`,
         { headers: { Authorization: `Bearer ${accessToken}` } }
       );
       const transcriptsData = await transcriptsRes.json();
@@ -102,7 +108,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
       const transcriptId: string = transcript.id;
       const contentRes = await fetch(
-        `https://graph.microsoft.com/v1.0/users/${userId}/onlineMeetings/${meetingId}/transcripts/${transcriptId}/content?$format=text/vtt`,
+        `https://graph.microsoft.com/v1.0/users/${graphUserId}/onlineMeetings/${meetingId}/transcripts/${transcriptId}/content?$format=text/vtt`,
         { headers: { Authorization: `Bearer ${accessToken}` } }
       );
       const transcriptText = await contentRes.text();
@@ -112,9 +118,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         continue;
       }
 
+      // ✅ Correct user_id: Supabase Auth ID
       const { error } = await supabase.from("meetings").insert({
         external_meeting_id: meetingId,
-        user_id: userId,
+        user_id: supabaseUserId,
         transcript: transcriptText,
         summary: null,
         proposal_items: null,
