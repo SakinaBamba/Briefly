@@ -66,11 +66,17 @@ export default async function handler(
       // 2️⃣ Find the online meeting using the join URL
       // Insert the join URL directly in the filter. Any single quotes in the
       // URL must be escaped by doubling them per the OData specification.
-      const escapedUrl = joinWebUrl.replace(/'/g, "''");
-      const meetingsRes = await fetch(
-        `https://graph.microsoft.com/v1.0/users/${userId}/onlineMeetings?$filter=joinWebUrl%20eq%20'${escapedUrl}'`,
-        { headers: { Authorization: `Bearer ${accessToken}` } },
+      const escapedUrl = encodeURIComponent(joinWebUrl.replace(/'/g, "''"));
+      const meetingsUrl = new URL(
+        `https://graph.microsoft.com/v1.0/users/${userId}/onlineMeetings`,
       );
+      meetingsUrl.searchParams.set(
+        "$filter",
+        `joinWebUrl eq '${joinWebUrl.replace(/'/g, "''")}'`,
+      );
+      const meetingsRes = await fetch(meetingsUrl.toString(), {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
       const meetingsData = await meetingsRes.json();
       const onlineMeeting = meetingsData.value?.[0];
       if (!onlineMeeting) {
@@ -144,7 +150,6 @@ export default async function handler(
       results.push({ meetingId, status: "Stored transcript" });
     }
 
-    
         if (results.length === 0) {
       // Surface a message when no meetings were processed so callers know
       // nothing was inserted during this run.
