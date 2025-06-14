@@ -65,15 +65,14 @@ export default async function handler(
 
       // 2️⃣ Find the online meeting using the join URL
       // Insert the join URL directly in the filter. Any single quotes in the
-      // URL must be escaped by doubling them per the OData specification.
+      // URL must be escaped by doubling them per the OData specification. The
+      // final value is URL encoded to prevent special characters from breaking
+      // the query.
       const escapedUrl = encodeURIComponent(joinWebUrl.replace(/'/g, "''"));
       const meetingsUrl = new URL(
         `https://graph.microsoft.com/v1.0/users/${userId}/onlineMeetings`,
       );
-      meetingsUrl.searchParams.set(
-        "$filter",
-        `joinWebUrl eq '${joinWebUrl.replace(/'/g, "''")}'`,
-      );
+      meetingsUrl.search = `$filter=joinWebUrl%20eq%20'${escapedUrl}'`;
       const meetingsRes = await fetch(meetingsUrl.toString(), {
         headers: { Authorization: `Bearer ${accessToken}` },
       });
