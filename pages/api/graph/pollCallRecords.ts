@@ -118,28 +118,40 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         continue;
       }
 
-      // ✅ Correct user_id: Supabase Auth ID
-      const { error } = await supabase.from("meetings").insert({
+      console.log(`📝 Transcript preview (${meetingId}):`, transcriptText.slice(0, 300));
+
+      const payload = {
         external_meeting_id: meetingId,
         user_id: supabaseUserId,
         transcript: transcriptText,
         summary: null,
         proposal_items: null,
         created_at: new Date().toISOString(),
-      });
+      };
+
+      console.log("📤 Inserting into Supabase:", payload);
+
+      const { error } = await supabase.from("meetings").insert(payload);
 
       if (error) {
-        console.error("❌ Insert error:", error);
+        console.error("❌ Supabase insert failed:", {
+          message: error.message,
+          details: error.details,
+          hint: error.hint,
+        });
         hasInsertError = true;
         results.push({ meetingId, status: "Supabase insert failed", error });
         continue;
       }
+
+      console.log("✅ Successfully inserted meeting:", meetingId);
 
       if (record.endDateTime) {
         await supabase.from("processing_state").upsert({
           key: "last_call_end",
           value: record.endDateTime,
         });
+        console.log("🕒 Updated processing_state with:", record.endDateTime);
       }
 
       results.push({ meetingId, status: "Stored transcript" });
@@ -152,8 +164,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const statusCode = hasInsertError ? 500 : 200;
     return res.status(statusCode).json({ results });
   } catch (err: any) {
-    console.error("Polling error:", err);
+    console.error("💥 Polling error:", err);
     return res.status(500).json({ error: "Polling failed", details: err.message });
   }
 }
+
 
