@@ -1,5 +1,3 @@
-// File: pages/api/graph/pollCallRecords.ts
-
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { createClient } from '@supabase/supabase-js';
 import { getGraphAccessToken } from '../../../utils/getGraphToken';
@@ -23,42 +21,39 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   try {
-    const results: any[] = [];
-
     const recordsRes = await fetch("https://graph.microsoft.com/v1.0/communications/callRecords", {
       headers: { Authorization: `Bearer ${accessToken}` },
     });
 
     const recordsData = await recordsRes.json();
-    const records = (recordsData.value || []).sort((a: any, b: any) =>
+    const records = (recordsData.value || []).sort((a, b) =>
       new Date(b.endDateTime).getTime() - new Date(a.endDateTime).getTime()
     );
 
-    console.log("📞 Total call records fetched:", records.length);
-    if (records.length === 0) return res.status(200).json({ results: ['No call records found'] });
-
-    const record = records[0]; // Only process most recent
-    const joinWebUrl: string | undefined = record.joinWebUrl;
-    if (!joinWebUrl) return res.status(200).json({ results: ['No joinWebUrl in latest record'] });
-
-    const meetingRes = await fetch(
-      `https://graph.microsoft.com/v1.0/users/${graphUserId}/onlineMeetings/getByJoinWebUrl`,
-      {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ joinWebUrl }),
-      }
-    );
-
-    if (!meetingRes.ok) {
-      const errText = await meetingRes.text();
-      return res.status(500).json({ error: 'Meeting lookup failed', details: errText });
+    if (records.length === 0) {
+      return res.status(200).json({ results: ['No call records found'] });
     }
 
-    const meeting = await meetingRes.json();
+    const record = records[0];
+    const joinWebUrl: string | undefined = record.joinWebUrl;
+
+    if (!joinWebUrl) {
+      return res.status(200).json({ results: ['No joinWebUrl in latest record'] });
+    }
+
+    const filterUrl = new URL(`https://graph.microsoft.com/v1.0/users/${graphUserId}/onlineMeetings`);
+    filterUrl.searchParams.set("$filter", `JoinWebUrl eq '${joinWebUrl}'`);
+
+    const meetingRes = await fetch(filterUrl.toString(), {
+      headers: { Authorization: `Bearer ${accessToken}` }
+    });
+
+    const meetingData = await meetingRes.json();
+    const meeting = meetingData.value?.[0];
+    if (!meeting) {
+      return res.status(404).json({ error: 'Meeting not found via JoinWebUrl filter' });
+    }
+
     const meetingId: string = meeting.id;
 
     const { data: existing } = await supabase
@@ -103,21 +98,18 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     const insertResult = await supabase.from('meetings').insert(payload);
     if (insertResult.error) {
-      console.error("❌ Supabase insert failed:", insertResult.error);
       return res.status(500).json({
         error: 'Failed to insert into Supabase',
         supabase_message: insertResult.error.message,
         hint: insertResult.error.hint,
         details: insertResult.error.details,
         code: insertResult.error.code,
-        payload
+        payload,
       });
     }
 
-    console.log("✅ Inserted into Supabase:", insertResult.data);
     return res.status(200).json({ results: ['Stored transcript', insertResult.data] });
   } catch (err: any) {
-    console.error("💥 Polling error:", err);
     return res.status(500).json({ error: 'Polling failed', details: err.message });
   }
 }
