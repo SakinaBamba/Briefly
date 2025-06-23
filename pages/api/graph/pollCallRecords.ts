@@ -103,11 +103,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         created_at: new Date().toISOString(),
       };
 
-      const insertResult = await supabase.from('meetings').insert(payload);
-      if (insertResult.error) {
-        results.push({ error: 'Insert failed', meetingId, details: insertResult.error.message });
-        continue;
-      }
+      const insertResult = await supabase
+        .from('meetings')
+        .insert(payload)
+        .select(); // ✅ FIX: ensures .data is correctly typed
 
       if (insertResult.data && insertResult.data.length > 0) {
         const meetingRowId = insertResult.data[0].id;
@@ -129,4 +128,5 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(500).json({ error: 'Polling failed', details: err.message });
   }
 }
+
 
