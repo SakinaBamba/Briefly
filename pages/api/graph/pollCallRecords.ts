@@ -7,6 +7,7 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
+
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   const graphUserId = process.env.GRAPH_USER_ID;
   const supabaseUserId = process.env.SUPABASE_USER_ID;
