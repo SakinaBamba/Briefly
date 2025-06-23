@@ -24,7 +24,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   try {
     const results: any[] = [];
-    let hasInsertError = false;
 
     const recordsRes = await fetch("https://graph.microsoft.com/v1.0/communications/callRecords", {
       headers: { Authorization: `Bearer ${accessToken}` },
@@ -102,13 +101,21 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       created_at: new Date().toISOString(),
     };
 
-    const { error } = await supabase.from('meetings').insert(payload);
-    if (error) {
-      console.error("❌ Supabase insert failed:", error);
-      return res.status(500).json({ error: 'Failed to insert into Supabase', details: error });
+    const insertResult = await supabase.from('meetings').insert(payload);
+    if (insertResult.error) {
+      console.error("❌ Supabase insert failed:", insertResult.error);
+      return res.status(500).json({
+        error: 'Failed to insert into Supabase',
+        supabase_message: insertResult.error.message,
+        hint: insertResult.error.hint,
+        details: insertResult.error.details,
+        code: insertResult.error.code,
+        payload
+      });
     }
 
-    return res.status(200).json({ results: ['Stored latest transcript to Supabase'] });
+    console.log("✅ Inserted into Supabase:", insertResult.data);
+    return res.status(200).json({ results: ['Stored transcript', insertResult.data] });
   } catch (err: any) {
     console.error("💥 Polling error:", err);
     return res.status(500).json({ error: 'Polling failed', details: err.message });
