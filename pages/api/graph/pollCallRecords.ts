@@ -2,7 +2,6 @@ import type { NextApiRequest, NextApiResponse } from "next";
 import { createClient } from "@supabase/supabase-js";
 import { getGraphAccessToken } from "../../../utils/getGraphToken";
 
-
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!,
@@ -25,21 +24,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const results: any[] = [];
     let hasInsertError = false;
 
-    const { data: stateRow } = await supabase
-      .from("processing_state")
-      .select("value")
-      .eq("key", "last_call_end")
-      .maybeSingle();
-
-    const lastProcessed: string | undefined = stateRow?.value;
+    // Fetch most recent call record (no date filtering)
     const url = new URL("https://graph.microsoft.com/v1.0/communications/callRecords");
-
-    if (lastProcessed) {
-      url.searchParams.set("$filter", `endDateTime gt ${lastProcessed}`);
-    } else {
-      url.searchParams.set("$top", "5");
-      url.searchParams.set("$orderby", "endDateTime desc");
-    }
+    url.searchParams.set("$top", "1");
+    url.searchParams.set("$orderby", "endDateTime desc");
 
     const recordsRes = await fetch(url.toString(), {
       headers: { Authorization: `Bearer ${accessToken}` },
@@ -48,7 +36,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const recordsData = await recordsRes.json();
     const records = recordsData.value || [];
 
-    console.log("📞 Total call records fetched:", records.length);
+    console.log("📞 Most recent call record fetched:", records.length);
 
     for (const record of records) {
       console.log(`➡️ Processing record ${record.id} ended at ${record.endDateTime}`);
@@ -64,7 +52,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         continue;
       }
 
-      // ✅ Correct way to look up meeting by joinWebUrl
       const meetingRes = await fetch(
         `https://graph.microsoft.com/v1.0/users/${graphUserId}/onlineMeetings/getByJoinWebUrl`,
         {
@@ -153,14 +140,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         continue;
       }
 
-      if (record.endDateTime) {
-        await supabase.from("processing_state").upsert({
-          key: "last_call_end",
-          value: record.endDateTime,
-        });
-        console.log("🕒 Updated last_call_end:", record.endDateTime);
-      }
-
       results.push({ meetingId, status: "Stored transcript" });
     }
 
@@ -174,5 +153,4 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(500).json({ error: "Polling failed", details: err.message });
   }
 }
-
 
