@@ -10,9 +10,10 @@ const supabase = createClient(
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   const graphUserId = process.env.GRAPH_USER_ID;
   const supabaseUserId = process.env.SUPABASE_USER_ID;
+  const appBaseUrl = process.env.NEXT_PUBLIC_APP_URL;
 
-  if (!graphUserId || !supabaseUserId) {
-    return res.status(500).json({ error: 'GRAPH_USER_ID or SUPABASE_USER_ID not configured' });
+  if (!graphUserId || !supabaseUserId || !appBaseUrl) {
+    return res.status(500).json({ error: 'Missing GRAPH_USER_ID, SUPABASE_USER_ID, or NEXT_PUBLIC_APP_URL' });
   }
 
   const accessToken = await getGraphAccessToken();
@@ -39,7 +40,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     for (const record of records) {
       const joinWebUrl = record.joinWebUrl;
       if (!joinWebUrl) {
-        results.push('Skipped: No joinWebUrl in record');
+        results.push('Skipped: No joinWebUrl');
         continue;
       }
 
@@ -53,11 +54,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       const meetingData = await meetingRes.json();
       const meeting = meetingData.value?.[0];
       if (!meeting) {
-        results.push('Skipped: Meeting not found via JoinWebUrl filter');
+        results.push('Skipped: Meeting not found');
         continue;
       }
 
-      const meetingId: string = meeting.id;
+      const meetingId = meeting.id;
 
       const { data: existing } = await supabase
         .from('meetings')
@@ -89,7 +90,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
       const transcriptText = await contentRes.text();
       if (!transcriptText) {
-        results.push(`Skipped: Empty transcript content for meeting ${meetingId}`);
+        results.push(`Skipped: Empty transcript for ${meetingId}`);
         continue;
       }
 
@@ -104,16 +105,20 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
       const insertResult = await supabase.from('meetings').insert(payload);
       if (insertResult.error) {
-        results.push({
-          error: 'Insert failed',
-          meetingId,
-          message: insertResult.error.message,
-          code: insertResult.error.code
-        });
+        results.push({ error: 'Insert failed', meetingId, details: insertResult.error.message });
         continue;
       }
 
-      results.push(`✅ Inserted meeting ${meetingId}`);
+      const meetingRowId = insertResult.data?.[0]?.id;
+      if (meetingRowId) {
+        await fetch(`${appBaseUrl}/api/processTranscript`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ meeting_id: meetingRowId }),
+        });
+
+        results.push(`✅ Inserted & triggered summary for ${meetingId}`);
+      }
     }
 
     return res.status(200).json({ results });
