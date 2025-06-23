@@ -1,77 +1,45 @@
-// File: /pages/api/processTranscript.ts
+import type { NextApiRequest, NextApiResponse } from 'next';
+import { createClient } from '@supabase/supabase-js';
+import { createSummaryFromTranscript } from '../../../utils/summarize';
 
-import type { NextApiRequest, NextApiResponse } from 'next'
-import { createClient } from '@supabase/supabase-js'
-import axios from 'axios'
-import crypto from 'crypto'
-
-const supabaseClient = createClient(
+const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!
-)
+);
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  if (req.method !== 'POST') {
-    res.status(405).json({ error: 'Method not allowed' })
-    return
+  const { meeting_id } = req.body;
+
+  if (!meeting_id) {
+    return res.status(400).json({ error: 'Missing meeting_id' });
   }
 
   try {
-    const { transcript, user_id } = req.body
+    const { data: meeting, error } = await supabase
+      .from('meetings')
+      .select('*')
+      .eq('id', meeting_id)
+      .maybeSingle();
 
-    // Sanity check
-    if (!transcript || !user_id) {
-      return res.status(400).json({ error: 'Missing transcript or user_id' })
+    if (error || !meeting) {
+      return res.status(404).json({ error: 'Meeting not found', details: error?.message });
     }
 
-    // Call OpenAI to summarize
-    const openaiResponse = await axios.post(
-      'https://api.openai.com/v1/chat/completions',
-      {
-        model: 'gpt-4o',
-        messages: [
-          {
-            role: 'system',
-            content: 'You are a helpful assistant that summarizes meeting transcripts and extracts proposal items if mentioned.'
-          },
-          {
-            role: 'user',
-            content: transcript
-          }
-        ],
-        max_tokens: 1000,
-        temperature: 0.5
-      },
-      {
-        headers: {
-          Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
-          'Content-Type': 'application/json'
-        }
-      }
-    )
+    const { summary, proposal_items } = await createSummaryFromTranscript(meeting.transcript);
 
-    const summary = openaiResponse.data.choices[0].message.content
+    const { error: updateError } = await supabase
+      .from('meetings')
+      .update({ summary, proposal_items })
+      .eq('id', meeting_id);
 
-    // Insert into Supabase meetings table
-    const { error: dbError } = await supabaseClient.from('meetings').insert([
-      {
-        external_meeting_id: crypto.randomUUID(),
-        user_id,
-        transcript,
-        summary,
-        proposal_items: null // You can enhance this later to extract structured items
-      }
-    ])
-
-    if (dbError) {
-      console.error('Supabase insert error:', dbError)
-      return res.status(500).json({ error: 'Failed to insert into Supabase' })
+    if (updateError) {
+      return res.status(500).json({ error: 'Failed to update summary', details: updateError.message });
     }
 
-    res.status(200).json({ summary })
-  } catch (error) {
-    console.error('API error:', error)
-    res.status(500).json({ error: 'Internal server error' })
+    return res.status(200).json({ result: 'Summary updated successfully', summary });
+  } catch (err: any) {
+    return res.status(500).json({ error: 'Unexpected error', details: err.message });
   }
 }
+
 
