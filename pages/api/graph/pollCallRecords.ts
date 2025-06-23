@@ -7,7 +7,6 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
-
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   const graphUserId = process.env.GRAPH_USER_ID;
   const supabaseUserId = process.env.SUPABASE_USER_ID;
@@ -27,89 +26,97 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     });
 
     const recordsData = await recordsRes.json();
-    const records = (recordsData.value || []).sort((a, b) =>
-      new Date(b.endDateTime).getTime() - new Date(a.endDateTime).getTime()
-    );
+    const records = (recordsData.value || [])
+      .sort((a, b) => new Date(b.endDateTime).getTime() - new Date(a.endDateTime).getTime())
+      .slice(0, 5);
 
     if (records.length === 0) {
       return res.status(200).json({ results: ['No call records found'] });
     }
 
-    const record = records[0];
-    const joinWebUrl: string | undefined = record.joinWebUrl;
+    const results: any[] = [];
 
-    if (!joinWebUrl) {
-      return res.status(200).json({ results: ['No joinWebUrl in latest record'] });
-    }
+    for (const record of records) {
+      const joinWebUrl = record.joinWebUrl;
+      if (!joinWebUrl) {
+        results.push('Skipped: No joinWebUrl in record');
+        continue;
+      }
 
-    const filterUrl = new URL(`https://graph.microsoft.com/v1.0/users/${graphUserId}/onlineMeetings`);
-    filterUrl.searchParams.set("$filter", `JoinWebUrl eq '${joinWebUrl}'`);
+      const filterUrl = new URL(`https://graph.microsoft.com/v1.0/users/${graphUserId}/onlineMeetings`);
+      filterUrl.searchParams.set("$filter", `JoinWebUrl eq '${joinWebUrl}'`);
 
-    const meetingRes = await fetch(filterUrl.toString(), {
-      headers: { Authorization: `Bearer ${accessToken}` }
-    });
-
-    const meetingData = await meetingRes.json();
-    const meeting = meetingData.value?.[0];
-    if (!meeting) {
-      return res.status(404).json({ error: 'Meeting not found via JoinWebUrl filter' });
-    }
-
-    const meetingId: string = meeting.id;
-
-    const { data: existing } = await supabase
-      .from('meetings')
-      .select('id')
-      .eq('external_meeting_id', meetingId)
-      .maybeSingle();
-
-    if (existing) {
-      return res.status(200).json({ results: ['Meeting already processed'] });
-    }
-
-    const transcriptsRes = await fetch(
-      `https://graph.microsoft.com/v1.0/users/${graphUserId}/onlineMeetings/${meetingId}/transcripts`,
-      { headers: { Authorization: `Bearer ${accessToken}` } }
-    );
-
-    const transcriptsData = await transcriptsRes.json();
-    const transcript = transcriptsData.value?.[0];
-    if (!transcript) {
-      return res.status(200).json({ results: ['No transcript found for meeting'] });
-    }
-
-    const contentRes = await fetch(
-      `https://graph.microsoft.com/v1.0/users/${graphUserId}/onlineMeetings/${meetingId}/transcripts/${transcript.id}/content?$format=text/vtt`,
-      { headers: { Authorization: `Bearer ${accessToken}` } }
-    );
-
-    const transcriptText = await contentRes.text();
-    if (!transcriptText) {
-      return res.status(200).json({ results: ['Empty transcript content'] });
-    }
-
-    const payload = {
-      external_meeting_id: meetingId,
-      user_id: supabaseUserId,
-      transcript: transcriptText,
-      summary: null,
-      proposal_items: null,
-      created_at: new Date().toISOString(),
-    };
-
-    const insertResult = await supabase.from('meetings').insert(payload);
-    if (insertResult.error) {
-      return res.status(500).json({
-        error: 'Failed to insert into Supabase',
-        supabase_message: insertResult.error.message,
-        hint: insertResult.error.hint,
-        details: insertResult.error.details,
-        code: insertResult.error.code,
-        payload,
+      const meetingRes = await fetch(filterUrl.toString(), {
+        headers: { Authorization: `Bearer ${accessToken}` }
       });
+
+      const meetingData = await meetingRes.json();
+      const meeting = meetingData.value?.[0];
+      if (!meeting) {
+        results.push('Skipped: Meeting not found via JoinWebUrl filter');
+        continue;
+      }
+
+      const meetingId: string = meeting.id;
+
+      const { data: existing } = await supabase
+        .from('meetings')
+        .select('id')
+        .eq('external_meeting_id', meetingId)
+        .maybeSingle();
+
+      if (existing) {
+        results.push(`Skipped: Meeting ${meetingId} already in Supabase`);
+        continue;
+      }
+
+      const transcriptsRes = await fetch(
+        `https://graph.microsoft.com/v1.0/users/${graphUserId}/onlineMeetings/${meetingId}/transcripts`,
+        { headers: { Authorization: `Bearer ${accessToken}` } }
+      );
+
+      const transcriptsData = await transcriptsRes.json();
+      const transcript = transcriptsData.value?.[0];
+      if (!transcript) {
+        results.push(`Skipped: No transcript for meeting ${meetingId}`);
+        continue;
+      }
+
+      const contentRes = await fetch(
+        `https://graph.microsoft.com/v1.0/users/${graphUserId}/onlineMeetings/${meetingId}/transcripts/${transcript.id}/content?$format=text/vtt`,
+        { headers: { Authorization: `Bearer ${accessToken}` } }
+      );
+
+      const transcriptText = await contentRes.text();
+      if (!transcriptText) {
+        results.push(`Skipped: Empty transcript content for meeting ${meetingId}`);
+        continue;
+      }
+
+      const payload = {
+        external_meeting_id: meetingId,
+        user_id: supabaseUserId,
+        transcript: transcriptText,
+        summary: null,
+        proposal_items: null,
+        created_at: new Date().toISOString(),
+      };
+
+      const insertResult = await supabase.from('meetings').insert(payload);
+      if (insertResult.error) {
+        results.push({
+          error: 'Insert failed',
+          meetingId,
+          message: insertResult.error.message,
+          code: insertResult.error.code
+        });
+        continue;
+      }
+
+      results.push(`✅ Inserted meeting ${meetingId}`);
     }
 
-    return res.status(200).json({ results: ['Stored transcript', insertResult.data] });
+    return res.status(200).json({ results });
   } catch (err: any) {
     return res.status(500).json({ error: 'Polling failed', details: err.message });
   }
