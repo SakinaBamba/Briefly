@@ -109,8 +109,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         continue;
       }
 
-      const meetingRowId = insertResult.data?.[0]?.id;
-      if (meetingRowId) {
+      if (insertResult.data && insertResult.data.length > 0) {
+        const meetingRowId = insertResult.data[0].id;
+
         await fetch(`${appBaseUrl}/api/processTranscript`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -118,6 +119,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         });
 
         results.push(`✅ Inserted & triggered summary for ${meetingId}`);
+      } else {
+        results.push(`⚠️ Inserted ${meetingId}, but no row ID returned`);
       }
     }
 
@@ -126,5 +129,4 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(500).json({ error: 'Polling failed', details: err.message });
   }
 }
-
 
