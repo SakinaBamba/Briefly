@@ -1,0 +1,31 @@
+name: Deploy Supabase Functions
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Install Supabase CLI
+        run: |
+          mkdir -p ~/.local/bin
+          curl -L https://github.com/supabase/cli/releases/latest/download/supabase-linux-amd64 -o ~/.local/bin/supabase
+          chmod +x ~/.local/bin/supabase
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
+
+      - name: Deploy summarizeMeeting Function
+        working-directory: ./supabase
+        run: supabase functions deploy summarizeMeeting --project-ref=rpcypbgyhlidifpqckgl
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+
+      - name: Deploy processMeetings Function
+        working-directory: ./supabase
+        run: supabase functions deploy processMeetings --project-ref=rpcypbgyhlidifpqckgl
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
