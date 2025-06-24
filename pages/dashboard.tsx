@@ -40,8 +40,24 @@ export default function Dashboard() {
   }, [])
 
   const handleCreateClient = async (meetingId: string) => {
-    const name = newClientNames[meetingId]
+    const name = newClientNames[meetingId]?.trim()
     if (!name) return
+
+    // Check if client already exists
+    const { data: existing } = await supabase
+      .from('clients')
+      .select('*')
+      .eq('name', name)
+      .single()
+
+    if (existing) {
+      // Use existing client
+      setClientSelections(prev => ({ ...prev, [meetingId]: existing.id }))
+      setNewClientNames(prev => ({ ...prev, [meetingId]: '' }))
+      setNewClientCreated(prev => ({ ...prev, [meetingId]: false }))
+      return
+    }
+
     const { data, error } = await supabase
       .from('clients')
       .insert({ name })
@@ -69,9 +85,23 @@ export default function Dashboard() {
   }
 
   const handleCreateOpportunity = async (meetingId: string) => {
-    const name = newOpportunityNames[meetingId]
+    const name = newOpportunityNames[meetingId]?.trim()
     const clientId = clientSelections[meetingId]
     if (!name || !clientId) return
+
+    // Check if opportunity already exists for this client
+    const { data: existing } = await supabase
+      .from('opportunities')
+      .select('*')
+      .eq('client_id', clientId)
+      .eq('name', name)
+      .single()
+
+    if (existing) {
+      setOpportunitySelections(prev => ({ ...prev, [meetingId]: existing.id }))
+      setNewOpportunityNames(prev => ({ ...prev, [meetingId]: '' }))
+      return
+    }
 
     const { data, error } = await supabase
       .from('opportunities')
@@ -98,7 +128,6 @@ export default function Dashboard() {
       .update({ client_id: clientId, opportunity_id: opportunityId })
       .eq('id', meetingId)
 
-    // Hide meeting from list once fully assigned
     setMeetings(prev => prev.filter(m => m.id !== meetingId))
   }
 
@@ -142,7 +171,6 @@ export default function Dashboard() {
             {/* Step 2: Assign or create opportunity */}
             {clientSelections[meeting.id] && (
               <div style={{ marginTop: '1rem' }}>
-                {/* Show existing opportunities ONLY if the client was selected, not just created */}
                 {!newClientCreated[meeting.id] && (
                   <>
                     <label>Select Existing Opportunity:</label><br />
