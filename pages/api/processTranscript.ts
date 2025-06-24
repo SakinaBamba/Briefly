@@ -1,28 +1,58 @@
-import type { NextApiRequest, NextApiResponse } from 'next';
+// File: pages/api/processTranscript.ts
+import type { NextApiRequest, NextApiResponse } from 'next'
+import { createClient } from '@supabase/supabase-js'
+import axios from 'axios'
 
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+)
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  const { meeting_id } = req.body;
-
-  if (!meeting_id) {
-    return res.status(400).json({ error: 'Missing meeting_id' });
-  }
-
   try {
-    const response = await fetch(`${process.env.NEXT_PUBLIC_APP_URL}/api/summarize`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ meeting_id }),
-    });
+    const { meeting_id, user_id } = req.body
 
-    if (!response.ok) {
-      const errorDetails = await response.json();
-      return res.status(500).json({ error: 'Summarization failed', details: errorDetails });
+    const { data: meeting, error: meetingError } = await supabase
+      .from('meetings')
+      .select('transcript')
+      .eq('id', meeting_id)
+      .single()
+
+    if (meetingError || !meeting?.transcript) {
+      return res.status(404).json({ error: 'Transcript not found for this meeting' })
     }
 
-    return res.status(200).json({ result: 'Summary triggered successfully' });
+    const summarizeResp = await axios.post(
+      `${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/summarizeMeeting`,
+      {
+        payload: {
+          text: meeting.transcript,
+          meeting_id,
+          user_id
+        }
+      },
+      {
+        headers: {
+          Authorization: `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}`
+        }
+      }
+    )
+
+    const { summary, proposal_items } = summarizeResp.data
+
+    const { error: updateError } = await supabase
+      .from('meetings')
+      .update({ summary, proposal_items })
+      .eq('id', meeting_id)
+
+    if (updateError) {
+      return res.status(500).json({ error: 'Failed to update summary', details: updateError })
+    }
+
+    return res.status(200).json({ success: true })
   } catch (err: any) {
-    return res.status(500).json({ error: 'Unexpected error', details: err.message });
+    console.error(err)
+    res.status(500).json({ error: 'Internal server error', details: err?.response?.data || err })
   }
 }
 
