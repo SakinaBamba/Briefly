@@ -1,132 +1,71 @@
+// File: pages/api/graph/pollCallRecords.ts
+
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { createClient } from '@supabase/supabase-js';
-import { getGraphAccessToken } from '../../../utils/getGraphToken';
+import axios from 'axios';
 
+const GRAPH_API_BASE = 'https://graph.microsoft.com/v1.0';
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 );
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  const graphUserId = process.env.GRAPH_USER_ID;
-  const supabaseUserId = process.env.SUPABASE_USER_ID;
-  const appBaseUrl = process.env.NEXT_PUBLIC_APP_URL;
-
-  if (!graphUserId || !supabaseUserId || !appBaseUrl) {
-    return res.status(500).json({ error: 'Missing GRAPH_USER_ID, SUPABASE_USER_ID, or NEXT_PUBLIC_APP_URL' });
-  }
-
-  const accessToken = await getGraphAccessToken();
-  if (!accessToken) {
-    return res.status(500).json({ error: 'Failed to get Graph API token' });
-  }
-
   try {
-    const recordsRes = await fetch("https://graph.microsoft.com/v1.0/communications/callRecords", {
-      headers: { Authorization: `Bearer ${accessToken}` },
+    const token = req.headers.authorization?.split(' ')[1];
+    if (!token) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const callRecordsResp = await axios.get(`${GRAPH_API_BASE}/communications/callRecords`, {
+      headers: { Authorization: `Bearer ${token}` }
     });
 
-    const recordsData = await recordsRes.json();
-    const records = (recordsData.value || [])
-      .sort((a, b) => new Date(b.endDateTime).getTime() - new Date(a.endDateTime).getTime())
-      .slice(0, 5);
+    const callRecords = callRecordsResp.data.value || [];
+    const appBaseUrl = process.env.NEXT_PUBLIC_APP_URL;
 
-    if (records.length === 0) {
-      return res.status(200).json({ results: ['No call records found'] });
-    }
+    let inserted = 0;
 
-    const results: any[] = [];
+    for (const record of callRecords.slice(0, 5)) {
+      const msMeetingId = record?.joinWebUrl || record?.id;
+      if (!msMeetingId) continue;
 
-    for (const record of records) {
-      const joinWebUrl = record.joinWebUrl;
-      if (!joinWebUrl) {
-        results.push('Skipped: No joinWebUrl');
-        continue;
-      }
-
-      const filterUrl = new URL(`https://graph.microsoft.com/v1.0/users/${graphUserId}/onlineMeetings`);
-      filterUrl.searchParams.set("$filter", `JoinWebUrl eq '${joinWebUrl}'`);
-
-      const meetingRes = await fetch(filterUrl.toString(), {
-        headers: { Authorization: `Bearer ${accessToken}` }
-      });
-
-      const meetingData = await meetingRes.json();
-      const meeting = meetingData.value?.[0];
-      if (!meeting) {
-        results.push('Skipped: Meeting not found');
-        continue;
-      }
-
-      const meetingId = meeting.id;
-
-      const { data: existing } = await supabase
+      // Check if meeting already exists
+      const { data: existing, error: existingErr } = await supabase
         .from('meetings')
         .select('id')
-        .eq('external_meeting_id', meetingId)
+        .eq('ms_teams_meeting_id', msMeetingId)
         .maybeSingle();
 
-      if (existing) {
-        results.push(`Skipped: Meeting ${meetingId} already in Supabase`);
-        continue;
-      }
+      if (existing || existingErr) continue;
 
-      const transcriptsRes = await fetch(
-        `https://graph.microsoft.com/v1.0/users/${graphUserId}/onlineMeetings/${meetingId}/transcripts`,
-        { headers: { Authorization: `Bearer ${accessToken}` } }
-      );
+      const { data: insertData, error: insertErr } = await supabase.from('meetings').insert([
+        {
+          ms_teams_meeting_id: msMeetingId,
+          transcript: record.transcription ? record.transcription.text : null,
+          title: record.subject || 'Untitled Meeting'
+        }
+      ]).select();
 
-      const transcriptsData = await transcriptsRes.json();
-      const transcript = transcriptsData.value?.[0];
-      if (!transcript) {
-        results.push(`Skipped: No transcript for meeting ${meetingId}`);
-        continue;
-      }
+      if (insertErr || !insertData || !insertData.length) continue;
 
-      const contentRes = await fetch(
-        `https://graph.microsoft.com/v1.0/users/${graphUserId}/onlineMeetings/${meetingId}/transcripts/${transcript.id}/content?$format=text/vtt`,
-        { headers: { Authorization: `Bearer ${accessToken}` } }
-      );
+      const meetingRowId = insertData[0].id;
+      inserted++;
 
-      const transcriptText = await contentRes.text();
-      if (!transcriptText) {
-        results.push(`Skipped: Empty transcript for ${meetingId}`);
-        continue;
-      }
-
-      const payload = {
-        external_meeting_id: meetingId,
-        user_id: supabaseUserId,
-        transcript: transcriptText,
-        summary: null,
-        proposal_items: null,
-        created_at: new Date().toISOString(),
-      };
-
-      const insertResult = await supabase
-        .from('meetings')
-        .insert(payload)
-        .select(); // ✅ FIX: ensures .data is correctly typed
-
-      if (insertResult.data && insertResult.data.length > 0) {
-        const meetingRowId = insertResult.data[0].id;
-
-        await fetch(`${appBaseUrl}/api/processTranscript`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ meeting_id: meetingRowId }),
-        });
-
-        results.push(`✅ Inserted & triggered summary for ${meetingId}`);
-      } else {
-        results.push(`⚠️ Inserted ${meetingId}, but no row ID returned`);
-      }
+      await fetch(`${appBaseUrl}/api/processTranscript`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          meeting_id: meetingRowId,
+          user_id: record?.organizer?.identity?.user?.id ?? null
+        })
+      });
     }
 
-    return res.status(200).json({ results });
+    return res.status(200).json({ inserted });
   } catch (err: any) {
-    return res.status(500).json({ error: 'Polling failed', details: err.message });
+    console.error('pollCallRecords error:', err?.response?.data || err);
+    return res.status(500).json({ error: 'Internal Server Error', details: err?.response?.data || err.message });
   }
 }
-
 
