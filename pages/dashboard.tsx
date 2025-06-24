@@ -1,7 +1,6 @@
 'use client'
 import { useEffect, useState } from 'react'
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
-import { useRouter } from 'next/router'
 
 export default function Dashboard() {
   const supabase = createClientComponentClient()
@@ -13,6 +12,7 @@ export default function Dashboard() {
   const [opportunitySelections, setOpportunitySelections] = useState<{ [meetingId: string]: string }>({})
   const [newClientNames, setNewClientNames] = useState<{ [meetingId: string]: string }>({})
   const [newOpportunityNames, setNewOpportunityNames] = useState<{ [meetingId: string]: string }>({})
+  const [newClientCreated, setNewClientCreated] = useState<{ [meetingId: string]: boolean }>({})
 
   useEffect(() => {
     const loadData = async () => {
@@ -52,13 +52,14 @@ export default function Dashboard() {
       setClients(prev => [...prev, data])
       setClientSelections(prev => ({ ...prev, [meetingId]: data.id }))
       setNewClientNames(prev => ({ ...prev, [meetingId]: '' }))
+      setNewClientCreated(prev => ({ ...prev, [meetingId]: true }))
     }
   }
 
   const handleAssignClient = async (meetingId: string, clientId: string) => {
     setClientSelections(prev => ({ ...prev, [meetingId]: clientId }))
+    setNewClientCreated(prev => ({ ...prev, [meetingId]: false }))
 
-    // Fetch opportunities for selected client
     const { data } = await supabase
       .from('opportunities')
       .select('*')
@@ -141,19 +142,24 @@ export default function Dashboard() {
             {/* Step 2: Assign or create opportunity */}
             {clientSelections[meeting.id] && (
               <div style={{ marginTop: '1rem' }}>
-                <label>Select Existing Opportunity:</label><br />
-                <select
-                  onChange={e => handleAssignOpportunity(meeting.id, e.target.value)}
-                  value={opportunitySelections[meeting.id] || ''}
-                >
-                  <option value="">-- Select Opportunity --</option>
-                  {(opportunities[clientSelections[meeting.id]] || []).map(opp => (
-                    <option key={opp.id} value={opp.id}>{opp.name}</option>
-                  ))}
-                </select>
-                <br /><br />
+                {/* Show existing opportunities ONLY if the client was selected, not just created */}
+                {!newClientCreated[meeting.id] && (
+                  <>
+                    <label>Select Existing Opportunity:</label><br />
+                    <select
+                      onChange={e => handleAssignOpportunity(meeting.id, e.target.value)}
+                      value={opportunitySelections[meeting.id] || ''}
+                    >
+                      <option value="">-- Select Opportunity --</option>
+                      {(opportunities[clientSelections[meeting.id]] || []).map(opp => (
+                        <option key={opp.id} value={opp.id}>{opp.name}</option>
+                      ))}
+                    </select>
+                    <br /><br />
+                  </>
+                )}
 
-                <label>Or create a new opportunity:</label><br />
+                <label>Create a New Opportunity:</label><br />
                 <input
                   type="text"
                   placeholder="Opportunity name"
