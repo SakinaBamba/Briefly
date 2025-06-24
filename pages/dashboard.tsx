@@ -41,34 +41,40 @@ export default function Dashboard() {
 
   const handleCreateClient = async (meetingId: string) => {
     const name = newClientNames[meetingId]?.trim()
-    if (!name) return
+    if (!name) return alert("Please enter a client name.")
 
-    // Check if client already exists
-    const { data: existing } = await supabase
-      .from('clients')
-      .select('*')
-      .eq('name', name)
-      .single()
+    try {
+      const { data, error } = await supabase
+        .from('clients')
+        .insert({ name })
+        .select()
+        .single()
 
-    if (existing) {
-      // Use existing client
-      setClientSelections(prev => ({ ...prev, [meetingId]: existing.id }))
-      setNewClientNames(prev => ({ ...prev, [meetingId]: '' }))
-      setNewClientCreated(prev => ({ ...prev, [meetingId]: false }))
-      return
-    }
+      if (error) throw error
 
-    const { data, error } = await supabase
-      .from('clients')
-      .insert({ name })
-      .select()
-      .single()
-
-    if (data) {
       setClients(prev => [...prev, data])
       setClientSelections(prev => ({ ...prev, [meetingId]: data.id }))
       setNewClientNames(prev => ({ ...prev, [meetingId]: '' }))
       setNewClientCreated(prev => ({ ...prev, [meetingId]: true }))
+    } catch (error: any) {
+      if (error.code === '23505') {
+        // Duplicate client name
+        const { data: existing } = await supabase
+          .from('clients')
+          .select('*')
+          .eq('name', name)
+          .single()
+
+        if (existing) {
+          alert("Client already exists. Assigning existing client.")
+          setClientSelections(prev => ({ ...prev, [meetingId]: existing.id }))
+          setNewClientNames(prev => ({ ...prev, [meetingId]: '' }))
+          setNewClientCreated(prev => ({ ...prev, [meetingId]: false }))
+        }
+      } else {
+        alert("Failed to create client. Please try again.")
+        console.error(error)
+      }
     }
   }
 
@@ -87,35 +93,42 @@ export default function Dashboard() {
   const handleCreateOpportunity = async (meetingId: string) => {
     const name = newOpportunityNames[meetingId]?.trim()
     const clientId = clientSelections[meetingId]
-    if (!name || !clientId) return
+    if (!name || !clientId) return alert("Please enter an opportunity name.")
 
-    // Check if opportunity already exists for this client
-    const { data: existing } = await supabase
-      .from('opportunities')
-      .select('*')
-      .eq('client_id', clientId)
-      .eq('name', name)
-      .single()
+    try {
+      const { data, error } = await supabase
+        .from('opportunities')
+        .insert({ name, client_id: clientId })
+        .select()
+        .single()
 
-    if (existing) {
-      setOpportunitySelections(prev => ({ ...prev, [meetingId]: existing.id }))
-      setNewOpportunityNames(prev => ({ ...prev, [meetingId]: '' }))
-      return
-    }
+      if (error) throw error
 
-    const { data, error } = await supabase
-      .from('opportunities')
-      .insert({ name, client_id: clientId })
-      .select()
-      .single()
-
-    if (data) {
       setOpportunities(prev => ({
         ...prev,
         [clientId]: [...(prev[clientId] || []), data]
       }))
       setOpportunitySelections(prev => ({ ...prev, [meetingId]: data.id }))
       setNewOpportunityNames(prev => ({ ...prev, [meetingId]: '' }))
+    } catch (error: any) {
+      if (error.code === '23505') {
+        // Duplicate opportunity
+        const { data: existing } = await supabase
+          .from('opportunities')
+          .select('*')
+          .eq('client_id', clientId)
+          .eq('name', name)
+          .single()
+
+        if (existing) {
+          alert("Opportunity already exists for this client. Assigning it.")
+          setOpportunitySelections(prev => ({ ...prev, [meetingId]: existing.id }))
+          setNewOpportunityNames(prev => ({ ...prev, [meetingId]: '' }))
+        }
+      } else {
+        alert("Failed to create opportunity. Please try again.")
+        console.error(error)
+      }
     }
   }
 
