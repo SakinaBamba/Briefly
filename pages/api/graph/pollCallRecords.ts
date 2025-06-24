@@ -34,82 +34,77 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return res.status(200).json({ results: ['No call records found'] });
     }
 
-    const record = records[0];
-    const joinWebUrl: string | undefined = record.joinWebUrl;
+    // Loop through the top 5 call records
+    const results = [];
 
-    if (!joinWebUrl) {
-      return res.status(200).json({ results: ['No joinWebUrl in latest record'] });
-    }
+    for (const record of records.slice(0, 5)) {
+      const joinWebUrl: string | undefined = record.joinWebUrl;
+      if (!joinWebUrl) continue;
 
-    const filterUrl = new URL(`https://graph.microsoft.com/v1.0/users/${graphUserId}/onlineMeetings`);
-    filterUrl.searchParams.set("$filter", `JoinWebUrl eq '${joinWebUrl}'`);
+      const filterUrl = new URL(`https://graph.microsoft.com/v1.0/users/${graphUserId}/onlineMeetings`);
+      filterUrl.searchParams.set("$filter", `JoinWebUrl eq '${joinWebUrl}'`);
 
-    const meetingRes = await fetch(filterUrl.toString(), {
-      headers: { Authorization: `Bearer ${accessToken}` }
-    });
-
-    const meetingData = await meetingRes.json();
-    const meeting = meetingData.value?.[0];
-    if (!meeting) {
-      return res.status(404).json({ error: 'Meeting not found via JoinWebUrl filter' });
-    }
-
-    const meetingId: string = meeting.id;
-
-    const { data: existing } = await supabase
-      .from('meetings')
-      .select('id')
-      .eq('external_meeting_id', meetingId)
-      .maybeSingle();
-
-    if (existing) {
-      return res.status(200).json({ results: ['Meeting already processed'] });
-    }
-
-    const transcriptsRes = await fetch(
-      `https://graph.microsoft.com/v1.0/users/${graphUserId}/onlineMeetings/${meetingId}/transcripts`,
-      { headers: { Authorization: `Bearer ${accessToken}` } }
-    );
-
-    const transcriptsData = await transcriptsRes.json();
-    const transcript = transcriptsData.value?.[0];
-    if (!transcript) {
-      return res.status(200).json({ results: ['No transcript found for meeting'] });
-    }
-
-    const contentRes = await fetch(
-      `https://graph.microsoft.com/v1.0/users/${graphUserId}/onlineMeetings/${meetingId}/transcripts/${transcript.id}/content?$format=text/vtt`,
-      { headers: { Authorization: `Bearer ${accessToken}` } }
-    );
-
-    const transcriptText = await contentRes.text();
-
-    const { data: insertData, error: insertError } = await supabase.from('meetings').insert([
-      {
-        title: meeting.subject || 'Untitled Meeting',
-        transcript: transcriptText,
-        external_meeting_id: meetingId,
-        start_time: meeting.startDateTime,
-        end_time: meeting.endDateTime,
-        user_id: supabaseUserId
-      }
-    ]).select();
-
-    if (insertError) {
-      console.error('Insert error:', insertError);
-      return res.status(500).json({ error: 'Failed to insert meeting' });
-    }
-
-    const meetingRowId = insertData?.[0]?.id;
-    if (meetingRowId) {
-      await fetch(`${process.env.NEXT_PUBLIC_APP_URL}/api/processTranscript`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ meeting_id: meetingRowId, user_id: supabaseUserId })
+      const meetingRes = await fetch(filterUrl.toString(), {
+        headers: { Authorization: `Bearer ${accessToken}` }
       });
+
+      const meetingData = await meetingRes.json();
+      const meeting = meetingData.value?.[0];
+      if (!meeting) continue;
+
+      const meetingId: string = meeting.id;
+
+      const { data: existing } = await supabase
+        .from('meetings')
+        .select('id')
+        .eq('external_meeting_id', meetingId)
+        .maybeSingle();
+
+      if (existing) continue;
+
+      const transcriptsRes = await fetch(
+        `https://graph.microsoft.com/v1.0/users/${graphUserId}/onlineMeetings/${meetingId}/transcripts`,
+        { headers: { Authorization: `Bearer ${accessToken}` } }
+      );
+
+      const transcriptsData = await transcriptsRes.json();
+      const transcript = transcriptsData.value?.[0];
+      if (!transcript) continue;
+
+      const contentRes = await fetch(
+        `https://graph.microsoft.com/v1.0/users/${graphUserId}/onlineMeetings/${meetingId}/transcripts/${transcript.id}/content?$format=text/vtt`,
+        { headers: { Authorization: `Bearer ${accessToken}` } }
+      );
+
+      const transcriptText = await contentRes.text();
+
+      const { data: insertData, error: insertError } = await supabase.from('meetings').insert([
+        {
+          title: meeting.subject || 'Untitled Meeting',
+          transcript: transcriptText,
+          external_meeting_id: meetingId,
+          user_id: supabaseUserId
+        }
+      ]).select();
+
+      if (insertError) {
+        console.error('Insert error:', insertError);
+        continue;
+      }
+
+      const meetingRowId = insertData?.[0]?.id;
+      if (meetingRowId) {
+        await fetch(`${process.env.NEXT_PUBLIC_APP_URL}/api/processTranscript`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ meeting_id: meetingRowId, user_id: supabaseUserId })
+        });
+      }
+
+      results.push({ meetingId, added: true });
     }
 
-    return res.status(200).json({ results: ['Meeting processed and summary triggered.'] });
+    return res.status(200).json({ results });
   } catch (err) {
     console.error('pollCallRecords error:', err);
     return res.status(500).json({ error: 'Internal server error', details: err });
