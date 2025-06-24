@@ -7,7 +7,6 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
-
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   const graphUserId = process.env.GRAPH_USER_ID;
   const supabaseUserId = process.env.SUPABASE_USER_ID;
@@ -84,34 +83,36 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     );
 
     const transcriptText = await contentRes.text();
-    if (!transcriptText) {
-      return res.status(200).json({ results: ['Empty transcript content'] });
+
+    const { data: insertData, error: insertError } = await supabase.from('meetings').insert([
+      {
+        title: meeting.subject || 'Untitled Meeting',
+        transcript: transcriptText,
+        external_meeting_id: meetingId,
+        start_time: meeting.startDateTime,
+        end_time: meeting.endDateTime,
+        user_id: supabaseUserId
+      }
+    ]).select();
+
+    if (insertError) {
+      console.error('Insert error:', insertError);
+      return res.status(500).json({ error: 'Failed to insert meeting' });
     }
 
-    const payload = {
-      external_meeting_id: meetingId,
-      user_id: supabaseUserId,
-      transcript: transcriptText,
-      summary: null,
-      proposal_items: null,
-      created_at: new Date().toISOString(),
-    };
-
-    const insertResult = await supabase.from('meetings').insert(payload);
-    if (insertResult.error) {
-      return res.status(500).json({
-        error: 'Failed to insert into Supabase',
-        supabase_message: insertResult.error.message,
-        hint: insertResult.error.hint,
-        details: insertResult.error.details,
-        code: insertResult.error.code,
-        payload,
+    const meetingRowId = insertData?.[0]?.id;
+    if (meetingRowId) {
+      await fetch(`${process.env.NEXT_PUBLIC_APP_URL}/api/processTranscript`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ meeting_id: meetingRowId, user_id: supabaseUserId })
       });
     }
 
-    return res.status(200).json({ results: ['Stored transcript', insertResult.data] });
-  } catch (err: any) {
-    return res.status(500).json({ error: 'Polling failed', details: err.message });
+    return res.status(200).json({ results: ['Meeting processed and summary triggered.'] });
+  } catch (err) {
+    console.error('pollCallRecords error:', err);
+    return res.status(500).json({ error: 'Internal server error', details: err });
   }
 }
 
