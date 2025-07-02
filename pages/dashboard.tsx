@@ -1,140 +1,98 @@
 'use client'
+
 import { useEffect, useState } from 'react'
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
+import { useRouter } from 'next/router'
 
 export default function Dashboard() {
   const supabase = createClientComponentClient()
   const [email, setEmail] = useState('')
   const [meetings, setMeetings] = useState<any[]>([])
   const [clients, setClients] = useState<any[]>([])
-  const [opportunities, setOpportunities] = useState<{ [clientId: string]: any[] }>({})
-  const [clientSelections, setClientSelections] = useState<{ [meetingId: string]: string }>({})
-  const [opportunitySelections, setOpportunitySelections] = useState<{ [meetingId: string]: string }>({})
-  const [newClientNames, setNewClientNames] = useState<{ [meetingId: string]: string }>({})
-  const [newOpportunityNames, setNewOpportunityNames] = useState<{ [meetingId: string]: string }>({})
-  const [newClientCreated, setNewClientCreated] = useState<{ [meetingId: string]: boolean }>({})
+  const [opportunities, setOpportunities] = useState<any[]>([])
+  const [newClientNames, setNewClientNames] = useState<{ [key: string]: string }>({})
+  const [selectedClientIds, setSelectedClientIds] = useState<{ [key: string]: string }>({})
+  const [newOpportunities, setNewOpportunities] = useState<{ [key: string]: string }>({})
+  const [selectedOpportunities, setSelectedOpportunities] = useState<{ [key: string]: string }>({})
 
   useEffect(() => {
-    const loadData = async () => {
+    const init = async () => {
       const { data: { user } } = await supabase.auth.getUser()
-      if (!user) return
-      setEmail(user.email)
+      setEmail(user?.email || '')
 
       const { data: meetingsData } = await supabase
         .from('meetings')
         .select('*')
-        .eq('user_id', user.id)
         .is('client_id', null)
-        .order('created_at', { ascending: false })
-
-      const { data: clientsData } = await supabase
-        .from('clients')
-        .select('*')
-        .order('name')
-
       setMeetings(meetingsData || [])
-      setClients(clientsData || [])
-    }
 
-    loadData()
+      const { data: clientsData } = await supabase.from('clients').select('*')
+      setClients(clientsData || [])
+
+      const { data: oppsData } = await supabase.from('opportunities').select('*')
+      setOpportunities(oppsData || [])
+    }
+    init()
   }, [])
 
-  const handleCreateClient = async (meetingId: string) => {
-    const name = newClientNames[meetingId]?.trim()
-    if (!name) return alert("Please enter a client name.")
+  const createClient = async (meetingId: string) => {
+    const name = newClientNames[meetingId]
+    if (!name) return
 
-    try {
-      const { data, error } = await supabase
-        .from('clients')
-        .insert({ name })
-        .select()
-        .single()
+    const existing = clients.find(c => c.name.toLowerCase() === name.toLowerCase())
+    if (existing) {
+      alert('Client already exists.')
+      return
+    }
 
-      if (error) throw error
-
-      setClients(prev => [...prev, data])
-      setClientSelections(prev => ({ ...prev, [meetingId]: data.id }))
+    const { data, error } = await supabase
+      .from('clients')
+      .insert([{ name }])
+      .select()
+    if (data) {
+      setClients(prev => [...prev, ...data])
+      setSelectedClientIds(prev => ({ ...prev, [meetingId]: data[0].id }))
       setNewClientNames(prev => ({ ...prev, [meetingId]: '' }))
-      setNewClientCreated(prev => ({ ...prev, [meetingId]: true }))
-    } catch (error: any) {
-      if (error.code === '23505') {
-        // Duplicate client name
-        const { data: existing } = await supabase
-          .from('clients')
-          .select('*')
-          .eq('name', name)
-          .single()
-
-        if (existing) {
-          alert("Client already exists. Assigning existing client.")
-          setClientSelections(prev => ({ ...prev, [meetingId]: existing.id }))
-          setNewClientNames(prev => ({ ...prev, [meetingId]: '' }))
-          setNewClientCreated(prev => ({ ...prev, [meetingId]: false }))
-        }
-      } else {
-        alert("Failed to create client. Please try again.")
-        console.error(error)
-      }
     }
   }
 
-  const handleAssignClient = async (meetingId: string, clientId: string) => {
-    setClientSelections(prev => ({ ...prev, [meetingId]: clientId }))
-    setNewClientCreated(prev => ({ ...prev, [meetingId]: false }))
+  const createOpportunity = async (meetingId: string) => {
+    const name = newOpportunities[meetingId]
+    const clientId = selectedClientIds[meetingId]
+    if (!name || !clientId) return
 
-    const { data } = await supabase
+    const existing = opportunities.find(
+      o => o.name.toLowerCase() === name.toLowerCase() && o.client_id === clientId
+    )
+    if (existing) {
+      alert('Opportunity already exists for this client.')
+      return
+    }
+
+    const { data, error } = await supabase
       .from('opportunities')
-      .select('*')
-      .eq('client_id', clientId)
+      .insert([{ name, client_id: clientId }])
+      .select()
+    if (data) {
+      setOpportunities(prev => [...prev, ...data])
+      setSelectedOpportunities(prev => ({ ...prev, [meetingId]: data[0].id }))
+      setNewOpportunities(prev => ({ ...prev, [meetingId]: '' }))
 
-    setOpportunities(prev => ({ ...prev, [clientId]: data || [] }))
-  }
+      // update meeting with client + opportunity
+      await supabase
+        .from('meetings')
+        .update({ client_id: clientId, opportunity_id: data[0].id })
+        .eq('id', meetingId)
 
-  const handleCreateOpportunity = async (meetingId: string) => {
-    const name = newOpportunityNames[meetingId]?.trim()
-    const clientId = clientSelections[meetingId]
-    if (!name || !clientId) return alert("Please enter an opportunity name.")
-
-    try {
-      const { data, error } = await supabase
-        .from('opportunities')
-        .insert({ name, client_id: clientId })
-        .select()
-        .single()
-
-      if (error) throw error
-
-      setOpportunities(prev => ({
-        ...prev,
-        [clientId]: [...(prev[clientId] || []), data]
-      }))
-      setOpportunitySelections(prev => ({ ...prev, [meetingId]: data.id }))
-      setNewOpportunityNames(prev => ({ ...prev, [meetingId]: '' }))
-    } catch (error: any) {
-      if (error.code === '23505') {
-        // Duplicate opportunity
-        const { data: existing } = await supabase
-          .from('opportunities')
-          .select('*')
-          .eq('client_id', clientId)
-          .eq('name', name)
-          .single()
-
-        if (existing) {
-          alert("Opportunity already exists for this client. Assigning it.")
-          setOpportunitySelections(prev => ({ ...prev, [meetingId]: existing.id }))
-          setNewOpportunityNames(prev => ({ ...prev, [meetingId]: '' }))
-        }
-      } else {
-        alert("Failed to create opportunity. Please try again.")
-        console.error(error)
-      }
+      // hide from dashboard
+      setMeetings(prev => prev.filter(m => m.id !== meetingId))
     }
   }
 
-  const handleAssignOpportunity = async (meetingId: string, opportunityId: string) => {
-    const clientId = clientSelections[meetingId]
-    if (!clientId) return
+  const assignExisting = async (meetingId: string) => {
+    const clientId = selectedClientIds[meetingId]
+    const opportunityId = selectedOpportunities[meetingId]
+    if (!clientId || !opportunityId) return
 
     await supabase
       .from('meetings')
@@ -145,69 +103,75 @@ export default function Dashboard() {
   }
 
   return (
-    <main style={{ padding: '2rem' }}>
+    <main>
       <h2>Welcome, {email}</h2>
       <h3>Unassigned Meetings</h3>
-
       {meetings.length === 0 ? (
         <p>You have no unassigned meetings.</p>
       ) : (
         meetings.map(meeting => (
-          <div key={meeting.id} style={{ border: '1px solid #ccc', borderRadius: '8px', padding: '1rem', marginBottom: '1rem' }}>
+          <div key={meeting.id} style={{ border: '1px solid #ccc', padding: 8, marginBottom: 12 }}>
             <h4>{meeting.title || 'Untitled Meeting'}</h4>
-            <p>{new Date(meeting.created_at).toLocaleString()}</p>
 
-            {/* Step 1: Assign or create client */}
             <div>
-              <label>Select Existing Client:</label><br />
+              <label>Assign to Existing Client:</label>
               <select
-                onChange={e => handleAssignClient(meeting.id, e.target.value)}
-                value={clientSelections[meeting.id] || ''}
+                value={selectedClientIds[meeting.id] || ''}
+                onChange={e =>
+                  setSelectedClientIds(prev => ({ ...prev, [meeting.id]: e.target.value }))
+                }
               >
                 <option value="">-- Select Client --</option>
-                {clients.map(client => (
-                  <option key={client.id} value={client.id}>{client.name}</option>
+                {clients.map(c => (
+                  <option key={c.id} value={c.id}>{c.name}</option>
                 ))}
               </select>
-              <br /><br />
-
-              <label>Or create a new client:</label><br />
-              <input
-                type="text"
-                placeholder="Client name"
-                value={newClientNames[meeting.id] || ''}
-                onChange={e => setNewClientNames(prev => ({ ...prev, [meeting.id]: e.target.value }))}
-              />
-              <button onClick={() => handleCreateClient(meeting.id)}>Create Client</button>
             </div>
 
-            {/* Step 2: Assign or create opportunity */}
-            {clientSelections[meeting.id] && (
-              <div style={{ marginTop: '1rem' }}>
-                {!newClientCreated[meeting.id] && (
-                  <>
-                    <label>Select Existing Opportunity:</label><br />
-                    <select
-                      onChange={e => handleAssignOpportunity(meeting.id, e.target.value)}
-                      value={opportunitySelections[meeting.id] || ''}
-                    >
-                      <option value="">-- Select Opportunity --</option>
-                      {(opportunities[clientSelections[meeting.id]] || []).map(opp => (
-                        <option key={opp.id} value={opp.id}>{opp.name}</option>
+            {selectedClientIds[meeting.id] && (
+              <>
+                <div>
+                  <label>Assign to Existing Opportunity:</label>
+                  <select
+                    value={selectedOpportunities[meeting.id] || ''}
+                    onChange={e =>
+                      setSelectedOpportunities(prev => ({ ...prev, [meeting.id]: e.target.value }))
+                    }
+                  >
+                    <option value="">-- Select Opportunity --</option>
+                    {opportunities
+                      .filter(o => o.client_id === selectedClientIds[meeting.id])
+                      .map(o => (
+                        <option key={o.id} value={o.id}>{o.name}</option>
                       ))}
-                    </select>
-                    <br /><br />
-                  </>
-                )}
+                  </select>
+                </div>
 
-                <label>Create a New Opportunity:</label><br />
+                <button onClick={() => assignExisting(meeting.id)}>Assign</button>
+              </>
+            )}
+
+            <div style={{ marginTop: 10 }}>
+              <label>Create New Client:</label>
+              <input
+                value={newClientNames[meeting.id] || ''}
+                onChange={e =>
+                  setNewClientNames(prev => ({ ...prev, [meeting.id]: e.target.value }))
+                }
+              />
+              <button onClick={() => createClient(meeting.id)}>Create</button>
+            </div>
+
+            {selectedClientIds[meeting.id] && (
+              <div>
+                <label>Create New Opportunity:</label>
                 <input
-                  type="text"
-                  placeholder="Opportunity name"
-                  value={newOpportunityNames[meeting.id] || ''}
-                  onChange={e => setNewOpportunityNames(prev => ({ ...prev, [meeting.id]: e.target.value }))}
+                  value={newOpportunities[meeting.id] || ''}
+                  onChange={e =>
+                    setNewOpportunities(prev => ({ ...prev, [meeting.id]: e.target.value }))
+                  }
                 />
-                <button onClick={() => handleCreateOpportunity(meeting.id)}>Create Opportunity</button>
+                <button onClick={() => createOpportunity(meeting.id)}>Create & Assign</button>
               </div>
             )}
           </div>
@@ -216,4 +180,5 @@ export default function Dashboard() {
     </main>
   )
 }
+
 
