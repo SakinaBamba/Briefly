@@ -9,12 +9,13 @@ const supabase = createClientComponentClient()
 
 export default function OpportunityPage() {
   const router = useRouter()
-  const { id: opportunityId } = router.query
-
   const [opportunity, setOpportunity] = useState<any>(null)
   const [meetings, setMeetings] = useState<any[]>([])
 
   useEffect(() => {
+    if (!router.isReady) return
+
+    const opportunityId = router.query.id
     if (!opportunityId) return
 
     const fetchData = async () => {
@@ -34,9 +35,10 @@ export default function OpportunityPage() {
     }
 
     fetchData()
-  }, [opportunityId])
+  }, [router.isReady])
 
-  if (!opportunity) return <p>Loading...</p>
+  if (!router.isReady || !router.query.id) return <p>Loading...</p>
+  if (!opportunity) return <p>Loading opportunity details...</p>
 
   return (
     <div className="p-6 max-w-4xl mx-auto">
@@ -72,3 +74,4 @@ export default function OpportunityPage() {
     </div>
   )
 }
+
