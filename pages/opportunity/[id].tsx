@@ -1,70 +1,76 @@
-// File: pages/opportunity/[id].tsx
+'use client'
 
-import { useRouter } from 'next/router';
-import { useEffect, useState } from 'react';
-import Link from 'next/link';
+import { useRouter } from 'next/router'
+import { useEffect, useState } from 'react'
+import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
+import Link from 'next/link'
 
-export default function MeetingDetailPage() {
-  const router = useRouter();
-  const { id } = router.query;
+const supabase = createClientComponentClient()
 
-  const [loading, setLoading] = useState(true);
-  const [data, setData] = useState(null);
+export default function OpportunityPage() {
+  const router = useRouter()
+  const { id: opportunityId } = router.query
+
+  const [opportunity, setOpportunity] = useState<any>(null)
+  const [meetings, setMeetings] = useState<any[]>([])
 
   useEffect(() => {
-    if (!id) return;
+    if (!opportunityId) return
+
     const fetchData = async () => {
-      const res = await fetch(`/api/getMeetingDetails?id=${id}`);
-      const json = await res.json();
-      setData(json);
-      setLoading(false);
-    };
-    fetchData();
-  }, [id]);
+      const { data: opp } = await supabase
+        .from('opportunities')
+        .select('*, clients(name)')
+        .eq('id', opportunityId)
+        .single()
+      setOpportunity(opp)
 
-  const downloadTranscript = () => {
-    const blob = new Blob([data?.transcript || ''], { type: 'text/plain' });
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `transcript-${id}.txt`;
-    a.click();
-    window.URL.revokeObjectURL(url);
-  };
+      const { data: mtgs } = await supabase
+        .from('meetings')
+        .select('*')
+        .eq('opportunity_id', opportunityId)
+        .order('created_at', { ascending: false })
+      setMeetings(mtgs || [])
+    }
 
-  if (loading) return <div className="p-10 text-xl">Loading...</div>;
-  if (!data) return <div className="p-10 text-xl">Meeting not found.</div>;
+    fetchData()
+  }, [opportunityId])
+
+  if (!opportunity) return <p>Loading...</p>
 
   return (
-    <div className="p-10 max-w-4xl mx-auto space-y-8">
-      <Link href="/dashboard" className="text-blue-600 hover:underline">
-        Back to Dashboard
+    <div className="p-6 max-w-4xl mx-auto">
+      <Link href={`/client/${opportunity.client_id}`} className="text-blue-600 hover:underline">
+        ← Back to Client
       </Link>
 
-      <div className="text-3xl font-semibold">{data.title}</div>
-      <div className="text-gray-500">{new Date(data.date).toLocaleString()}</div>
+      <h1 className="text-2xl font-bold mt-4">{opportunity.name}</h1>
+      <p className="text-gray-500 mb-6">Client: {opportunity.clients?.name}</p>
 
-      <div className="bg-white rounded-2xl shadow p-6">
-        <h2 className="text-xl font-bold mb-2">Summary</h2>
-        <p className="text-gray-700 whitespace-pre-wrap">{data.summary}</p>
-      </div>
-
-      <div className="bg-white rounded-2xl shadow p-6">
-        <div className="flex justify-between items-center mb-2">
-          <h2 className="text-xl font-bold">Transcript</h2>
-          <button
-            onClick={downloadTranscript}
-            className="bg-black text-white px-4 py-2 rounded hover:bg-gray-800 transition"
-          >
-            Download Transcript
-          </button>
+      <h2 className="text-xl font-semibold mb-2">Assigned Meetings</h2>
+      {meetings.length === 0 ? (
+        <p>No meetings have been assigned to this opportunity.</p>
+      ) : (
+        <div className="space-y-4">
+          {meetings.map((meeting) => (
+            <Link
+              key={meeting.id}
+              href={`/meeting/${meeting.id}`}
+              className="block border rounded-lg p-4 hover:bg-gray-50 transition"
+            >
+              <h3 className="text-lg font-semibold">{meeting.title || 'Untitled Meeting'}</h3>
+              <p className="text-sm text-gray-500">
+                {new Date(meeting.created_at).toLocaleString()}
+              </p>
+              <p className="mt-2 text-gray-700 line-clamp-2">
+                {meeting.summary || 'No summary available.'}
+              </p>
+            </Link>
+          ))}
         </div>
-        <div className="text-gray-700 whitespace-pre-wrap max-h-[400px] overflow-y-auto">
-          {data.transcript}
-        </div>
-      </div>
+      )}
     </div>
-  );
+  )
 }
 
 
