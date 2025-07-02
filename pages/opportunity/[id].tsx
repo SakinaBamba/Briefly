@@ -21,7 +21,7 @@ export default function OpportunityPage() {
       try {
         const { data: opportunityData, error: opportunityError } = await supabase
           .from('opportunities')
-          .select('*, clients:client_id(name)')
+          .select('*, client:clients(name)')
           .eq('id', opportunityId)
           .single()
 
@@ -54,23 +54,30 @@ export default function OpportunityPage() {
   return (
     <div className="p-6">
       <h1 className="text-3xl font-bold mb-2">{opportunity.name}</h1>
-      <p className="text-gray-500 mb-6">Client: {opportunity.clients?.name || 'N/A'}</p>
+      <p className="text-gray-500 mb-6">
+        Client: {opportunity.client?.name || 'N/A'}
+      </p>
 
       <h2 className="text-xl font-semibold mb-3">Assigned Meetings</h2>
       {meetings.length === 0 ? (
         <p>No meetings assigned to this opportunity.</p>
       ) : (
         <ul className="space-y-4">
-          {meetings.map((meeting: any) => (
+          {meetings.map((meeting) => (
             <li key={meeting.id} className="border rounded p-4 hover:bg-gray-50">
-              <a href={`/meeting/${meeting.id}`} className="text-blue-600 hover:underline">
+              <a
+                href={`/meeting/${meeting.id}`}
+                className="text-blue-600 hover:underline font-medium"
+              >
                 {meeting.title || 'Untitled Meeting'}
               </a>
               <div className="text-sm text-gray-500">
                 {new Date(meeting.created_at).toLocaleString()}
               </div>
               <p className="mt-2 text-gray-700 text-sm line-clamp-3">
-                {meeting.summary?.slice(0, 200) || 'No summary available.'}
+                {meeting.summary
+                  ? meeting.summary.slice(0, 200) + '...'
+                  : 'No summary available.'}
               </p>
             </li>
           ))}
@@ -79,5 +86,6 @@ export default function OpportunityPage() {
     </div>
   )
 }
+
 
 
