@@ -1,13 +1,13 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { useParams } from 'next/navigation'
+import { useRouter } from 'next/router'
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
 
 export default function OpportunityPage() {
+  const router = useRouter()
   const supabase = createClientComponentClient()
-  const params = useParams()
-  const opportunityId = Array.isArray(params.id) ? params.id[0] : params.id
+  const { id: opportunityId } = router.query
 
   const [opportunity, setOpportunity] = useState(null)
   const [meetings, setMeetings] = useState([])
@@ -15,6 +15,8 @@ export default function OpportunityPage() {
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
+    if (!opportunityId || typeof opportunityId !== 'string') return
+
     const fetchOpportunityData = async () => {
       try {
         const { data: opportunityData, error: opportunityError } = await supabase
@@ -24,7 +26,6 @@ export default function OpportunityPage() {
           .single()
 
         if (opportunityError) throw opportunityError
-
         setOpportunity(opportunityData)
 
         const { data: meetingsData, error: meetingsError } = await supabase
@@ -34,19 +35,16 @@ export default function OpportunityPage() {
           .order('created_at', { ascending: false })
 
         if (meetingsError) throw meetingsError
-
         setMeetings(meetingsData)
       } catch (err: any) {
-        console.error('Error fetching opportunity or meetings:', err)
+        console.error('Fetch error:', err)
         setError(err.message)
       } finally {
         setLoading(false)
       }
     }
 
-    if (opportunityId) {
-      fetchOpportunityData()
-    }
+    fetchOpportunityData()
   }, [opportunityId, supabase])
 
   if (loading) return <div>Loading...</div>
