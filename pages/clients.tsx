@@ -1,6 +1,7 @@
 'use client'
 import { useEffect, useState } from 'react'
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
+import Link from 'next/link'
 
 export default function ClientsPage() {
   const supabase = createClientComponentClient()
@@ -23,7 +24,6 @@ export default function ClientsPage() {
     const name = newClientName.trim()
     if (!name) return alert('Client name cannot be empty')
 
-    // Check if client exists
     const { data: existing } = await supabase
       .from('clients')
       .select('*')
@@ -67,9 +67,14 @@ export default function ClientsPage() {
 
       <ul>
         {clients.map(client => (
-          <li key={client.id}>{client.name}</li>
+          <li key={client.id}>
+            <Link href={`/client/${client.id}`} style={{ textDecoration: 'none', color: 'blue' }}>
+              {client.name}
+            </Link>
+          </li>
         ))}
       </ul>
     </div>
   )
 }
+
