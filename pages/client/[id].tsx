@@ -13,7 +13,6 @@ export default function ClientPage() {
 
   const [client, setClient] = useState<any>(null)
   const [opportunities, setOpportunities] = useState<any[]>([])
-  const [meetings, setMeetings] = useState<any[]>([])
 
   useEffect(() => {
     if (!clientId) return
@@ -30,13 +29,8 @@ export default function ClientPage() {
         .from('opportunities')
         .select('*')
         .eq('client_id', clientId)
+        .order('created_at', { ascending: false })
       setOpportunities(opps || [])
-
-      const { data: meetingData } = await supabase
-        .from('meetings')
-        .select('*')
-        .eq('client_id', clientId)
-      setMeetings(meetingData || [])
     }
 
     fetchData()
@@ -46,7 +40,9 @@ export default function ClientPage() {
 
   return (
     <div>
-      <Link href="/clients" style={{ color: 'blue', textDecoration: 'none' }}>← Back to Clients</Link>
+      <Link href="/clients" style={{ color: 'blue', textDecoration: 'none' }}>
+        ← Back to Clients
+      </Link>
       <h2>{client.name}</h2>
 
       <h3>Opportunities</h3>
@@ -55,18 +51,11 @@ export default function ClientPage() {
       ) : (
         <ul>
           {opportunities.map(opp => (
-            <li key={opp.id}>{opp.name}</li>
-          ))}
-        </ul>
-      )}
-
-      <h3>Meetings</h3>
-      {meetings.length === 0 ? (
-        <p>No meetings assigned yet.</p>
-      ) : (
-        <ul>
-          {meetings.map(meeting => (
-            <li key={meeting.id}>{meeting.title || 'Untitled'} – {new Date(meeting.created_at).toLocaleString()}</li>
+            <li key={opp.id}>
+              <Link href={`/opportunity/${opp.id}`} style={{ color: 'blue', textDecoration: 'none' }}>
+                {opp.name}
+              </Link>
+            </li>
           ))}
         </ul>
       )}
