@@ -1,62 +1,66 @@
-'use client'
+// File: pages/opportunity/[meetingId].tsx
 
-import { useRouter } from 'next/router'
-import { useEffect, useState } from 'react'
-import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
-import Link from 'next/link'
+import { useRouter } from 'next/router';
+import { useEffect, useState } from 'react';
+import Link from 'next/link';
+import { Button } from '@/components/ui/button';
 
-const supabase = createClientComponentClient()
+export default function MeetingDetailPage() {
+  const router = useRouter();
+  const { meetingId } = router.query;
 
-export default function OpportunityPage() {
-  const router = useRouter()
-  const { id: opportunityId } = router.query
-
-  const [opportunity, setOpportunity] = useState<any>(null)
-  const [meetings, setMeetings] = useState<any[]>([])
+  const [loading, setLoading] = useState(true);
+  const [data, setData] = useState(null);
 
   useEffect(() => {
-    if (!opportunityId) return
-
+    if (!meetingId) return;
     const fetchData = async () => {
-      const { data: opp } = await supabase
-        .from('opportunities')
-        .select('*')
-        .eq('id', opportunityId)
-        .single()
-      setOpportunity(opp)
+      const res = await fetch(`/api/getMeetingDetails?id=${meetingId}`);
+      const json = await res.json();
+      setData(json);
+      setLoading(false);
+    };
+    fetchData();
+  }, [meetingId]);
 
-      const { data: mtgs } = await supabase
-        .from('meetings')
-        .select('*')
-        .eq('opportunity_id', opportunityId)
-        .order('created_at', { ascending: false })
-      setMeetings(mtgs || [])
-    }
+  const downloadTranscript = () => {
+    const blob = new Blob([data?.transcript || ''], { type: 'text/plain' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `transcript-${meetingId}.txt`;
+    a.click();
+    window.URL.revokeObjectURL(url);
+  };
 
-    fetchData()
-  }, [opportunityId])
-
-  if (!opportunity) return <p>Loading...</p>
+  if (loading) return <div className="p-10 text-xl">Loading...</div>;
+  if (!data) return <div className="p-10 text-xl">Meeting not found.</div>;
 
   return (
-    <div>
-      <Link href={`/client/${opportunity.client_id}`} style={{ color: 'blue' }}>← Back to Client</Link>
-      <h2>{opportunity.name}</h2>
+    <div className="p-10 max-w-4xl mx-auto space-y-8">
+      <Link href="/dashboard">
+        <Button variant="ghost">Back to Dashboard</Button>
+      </Link>
 
-      <h3>Assigned Meetings</h3>
-      {meetings.length === 0 ? (
-        <p>No meetings assigned to this opportunity.</p>
-      ) : (
-        <ul>
-          {meetings.map(meeting => (
-            <li key={meeting.id}>
-              {meeting.title || 'Untitled'} – {new Date(meeting.created_at).toLocaleString()}
-            </li>
-          ))}
-        </ul>
-      )}
+      <div className="text-3xl font-semibold">{data.title}</div>
+      <div className="text-gray-500">{new Date(data.date).toLocaleString()}</div>
+
+      <div className="bg-white rounded-2xl shadow p-6">
+        <h2 className="text-xl font-bold mb-2">Summary</h2>
+        <p className="text-gray-700 whitespace-pre-wrap">{data.summary}</p>
+      </div>
+
+      <div className="bg-white rounded-2xl shadow p-6">
+        <div className="flex justify-between items-center mb-2">
+          <h2 className="text-xl font-bold">Transcript</h2>
+          <Button onClick={downloadTranscript}>Download Transcript</Button>
+        </div>
+        <div className="text-gray-700 whitespace-pre-wrap max-h-[400px] overflow-y-auto">
+          {data.transcript}
+        </div>
+      </div>
     </div>
-  )
+  );
 }
 
 
