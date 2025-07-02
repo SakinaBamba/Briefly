@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
 
 
+
 export default function Dashboard() {
   const supabase = createClientComponentClient()
   const [email, setEmail] = useState('')
