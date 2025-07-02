@@ -13,30 +13,46 @@ export default function ClientPage() {
 
   const [client, setClient] = useState<any>(null)
   const [opportunities, setOpportunities] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     if (!clientId) return
 
     const fetchData = async () => {
-      const { data: clientData } = await supabase
-        .from('clients')
-        .select('*')
-        .eq('id', clientId)
-        .single()
-      setClient(clientData)
+      try {
+        const {
+          data: clientData,
+          error: clientError,
+        } = await supabase
+          .from('clients')
+          .select('*')
+          .eq('id', clientId)
+          .single()
+        if (clientError) console.error(clientError)
+        setClient(clientData)
 
-      const { data: opps } = await supabase
-        .from('opportunities')
-        .select('*')
-        .eq('client_id', clientId)
-        .order('created_at', { ascending: false })
-      setOpportunities(opps || [])
+        if (clientData) {
+          const {
+            data: opps,
+            error: oppError,
+          } = await supabase
+            .from('opportunities')
+            .select('*')
+            .eq('client_id', clientId)
+            .order('created_at', { ascending: false })
+          if (oppError) console.error(oppError)
+          setOpportunities(opps || [])
+        }
+      } finally {
+        setLoading(false)
+      }
     }
 
     fetchData()
   }, [clientId])
 
-  if (!client) return <p>Loading...</p>
+  if (loading) return <p>Loading...</p>
+  if (!client) return <p>Client not found.</p>
 
   return (
     <div>
