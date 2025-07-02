@@ -3,73 +3,65 @@
 import { useRouter } from 'next/router'
 import { useEffect, useState } from 'react'
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
-import Link from 'next/link'
 
 const supabase = createClientComponentClient()
 
 export default function MeetingPage() {
   const router = useRouter()
-  const { id: meetingId } = router.query
   const [meeting, setMeeting] = useState<any>(null)
-  const [loading, setLoading] = useState(true)
 
   useEffect(() => {
+    if (!router.isReady) return
+
+    const meetingId = router.query.id
     if (!meetingId) return
 
     const fetchMeeting = async () => {
-      const { data, error } = await supabase
+      const { data } = await supabase
         .from('meetings')
         .select('*')
         .eq('id', meetingId)
         .single()
-
       setMeeting(data)
-      setLoading(false)
     }
 
     fetchMeeting()
-  }, [meetingId])
+  }, [router.isReady])
 
-  if (loading) return <div className="p-8 text-center text-gray-500">Loading...</div>
-  if (!meeting) return <div className="p-8 text-center text-red-500">Meeting not found.</div>
+  if (!router.isReady || !router.query.id) return <p>Loading...</p>
+  if (!meeting) return <p>Loading meeting...</p>
 
-  const handleDownload = () => {
-    const blob = new Blob([meeting.transcript], { type: 'text/plain' })
-    const url = URL.createObjectURL(blob)
-    const link = document.createElement('a')
-    link.href = url
-    link.download = `${meeting.title || 'meeting'}-transcript.txt`
-    document.body.appendChild(link)
-    link.click()
-    document.body.removeChild(link)
-    URL.revokeObjectURL(url)
+  const downloadTranscript = () => {
+    const element = document.createElement('a')
+    const file = new Blob([meeting.transcript || 'No transcript available.'], { type: 'text/plain' })
+    element.href = URL.createObjectURL(file)
+    element.download = `${meeting.title || 'meeting-transcript'}.txt`
+    document.body.appendChild(element)
+    element.click()
   }
 
   return (
-    <div className="max-w-3xl mx-auto p-6">
-      <Link href={`/opportunity/${meeting.opportunity_id}`} className="text-blue-500 hover:underline">← Back to Opportunity</Link>
-      <h1 className="text-3xl font-semibold mt-4 mb-2">{meeting.title || 'Untitled Meeting'}</h1>
-      <p className="text-sm text-gray-500 mb-6">{new Date(meeting.created_at).toLocaleString()}</p>
+    <div className="p-6 max-w-4xl mx-auto">
+      <h1 className="text-2xl font-bold mb-2">{meeting.title || 'Untitled Meeting'}</h1>
+      <p className="text-sm text-gray-500 mb-6">
+        {new Date(meeting.created_at).toLocaleString()}
+      </p>
 
-      <section className="bg-white shadow rounded-xl p-6 mb-8">
-        <h2 className="text-xl font-semibold mb-2">Summary</h2>
-        <p className="text-gray-700 whitespace-pre-line">{meeting.summary || 'No summary available.'}</p>
-      </section>
+      <h2 className="text-lg font-semibold mb-2">Summary</h2>
+      <p className="bg-gray-100 p-4 rounded mb-6">{meeting.summary || 'No summary available.'}</p>
 
-      <section className="bg-white shadow rounded-xl p-6">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-xl font-semibold">Transcript</h2>
-          <button
-            onClick={handleDownload}
-            className="bg-gray-800 text-white px-4 py-2 rounded hover:bg-gray-700 transition"
-          >
-            Download
-          </button>
-        </div>
-        <div className="max-h-80 overflow-y-auto border-t pt-4 text-gray-700 whitespace-pre-line">
-          {meeting.transcript || 'Transcript not available.'}
-        </div>
-      </section>
+      <h2 className="text-lg font-semibold mb-2">Transcript</h2>
+      <pre className="bg-gray-50 p-4 rounded whitespace-pre-wrap text-sm mb-4">
+        {meeting.transcript || 'No transcript available.'}
+      </pre>
+
+      <button
+        onClick={downloadTranscript}
+        className="bg-black text-white px-4 py-2 rounded hover:bg-gray-800 transition"
+      >
+        Download Transcript
+      </button>
     </div>
   )
-} 
+}
+
