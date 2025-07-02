@@ -1,103 +1,79 @@
 'use client'
 
-// Displays opportunity details along with any assigned meetings.
-// Now uses an error state to surface fetch failures to the user.
-
-import { useRouter } from 'next/router'
 import { useEffect, useState } from 'react'
+import { useParams } from 'next/navigation'
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
-import Link from 'next/link'
-
-const supabase = createClientComponentClient()
 
 export default function OpportunityPage() {
-  const router = useRouter()
-  const { id: opportunityId } = router.query
+  const supabase = createClientComponentClient()
+  const params = useParams()
+  const opportunityId = Array.isArray(params.id) ? params.id[0] : params.id
 
-  const [opportunity, setOpportunity] = useState<any>(null)
-  const [meetings, setMeetings] = useState<any[]>([])
+  const [opportunity, setOpportunity] = useState(null)
+  const [meetings, setMeetings] = useState([])
   const [loading, setLoading] = useState(true)
-  // Track any errors that occur during data fetching
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    if (!opportunityId) return
-
-    const fetchData = async () => {
+    const fetchOpportunityData = async () => {
       try {
-        setError(null)
-        const {
-          data: opp,
-          error: oppError,
-        } = await supabase
+        const { data: opportunityData, error: opportunityError } = await supabase
           .from('opportunities')
-          .select('*, clients(name)')
+          .select('*, clients!client_id(name)')
           .eq('id', opportunityId)
           .single()
-        if (oppError) {
-          console.error(oppError)
-          setError(oppError.message)
-        }
-        setOpportunity(opp)
 
-        if (opp) {
-          const {
-            data: mtgs,
-            error: mtgError,
-          } = await supabase
-            .from('meetings')
-            .select('*')
-            .eq('opportunity_id', opportunityId)
-            .order('created_at', { ascending: false })
-          if (mtgError) {
-            console.error(mtgError)
-            setError(mtgError.message)
-          }
-          setMeetings(mtgs || [])
-        }
+        if (opportunityError) throw opportunityError
+
+        setOpportunity(opportunityData)
+
+        const { data: meetingsData, error: meetingsError } = await supabase
+          .from('meetings')
+          .select('*')
+          .eq('opportunity_id', opportunityId)
+          .order('created_at', { ascending: false })
+
+        if (meetingsError) throw meetingsError
+
+        setMeetings(meetingsData)
+      } catch (err: any) {
+        console.error('Error fetching opportunity or meetings:', err)
+        setError(err.message)
       } finally {
         setLoading(false)
       }
     }
 
-    fetchData()
-  }, [opportunityId])
+    if (opportunityId) {
+      fetchOpportunityData()
+    }
+  }, [opportunityId, supabase])
 
-  if (loading) return <p>Loading...</p>
-  if (error) return <p>Error: {error}</p>
-  if (!opportunity) return <p>Opportunity not found.</p>
+  if (loading) return <div>Loading...</div>
+  if (error) return <div className="text-red-600">Error: {error}</div>
+  if (!opportunity) return <div>Opportunity not found</div>
 
   return (
-    <div className="p-6 max-w-4xl mx-auto">
-      <Link href={`/client/${opportunity.client_id}`} className="text-blue-600 hover:underline">
-        ← Back to Client
-      </Link>
+    <div className="p-6">
+      <h1 className="text-3xl font-bold mb-2">{opportunity.name}</h1>
+      <p className="text-gray-500 mb-6">Client: {opportunity.clients?.name || 'N/A'}</p>
 
-      <h1 className="text-2xl font-bold mt-4">{opportunity.name}</h1>
-      <p className="text-gray-500 mb-6">Client: {opportunity.clients?.name}</p>
-
-      <h2 className="text-xl font-semibold mb-2">Assigned Meetings</h2>
+      <h2 className="text-xl font-semibold mb-3">Assigned Meetings</h2>
       {meetings.length === 0 ? (
-        <p>No meetings have been assigned to this opportunity.</p>
+        <p>No meetings assigned to this opportunity.</p>
       ) : (
-        <div className="space-y-4">
-          {meetings.map((meeting) => (
-            <Link
-              key={meeting.id}
-              href={`/meeting/${meeting.id}`}
-              className="block border rounded-lg p-4 hover:bg-gray-50 transition"
-            >
-              <h3 className="text-lg font-semibold">{meeting.title || 'Untitled Meeting'}</h3>
-              <p className="text-sm text-gray-500">
+        <ul className="space-y-4">
+          {meetings.map((meeting: any) => (
+            <li key={meeting.id} className="border rounded p-4 hover:bg-gray-50">
+              <a href={`/meeting/${meeting.id}`} className="text-blue-600 hover:underline">
+                {meeting.title || 'Untitled Meeting'}
+              </a>
+              <div className="text-sm text-gray-500">
                 {new Date(meeting.created_at).toLocaleString()}
-
-              </p>
-              <p className="mt-2 text-gray-700 line-clamp-2">
-                {meeting.summary || 'No summary available.'}
-              </p>
-            </Link>
+              </div>
+            </li>
           ))}
-        </div>
+        </ul>
       )}
     </div>
   )
