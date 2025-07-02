@@ -43,7 +43,7 @@ export default function OpportunityPage() {
       <Link href={`/client/${opportunity.client_id}`} style={{ color: 'blue' }}>← Back to Client</Link>
       <h2>{opportunity.name}</h2>
 
-      <h3>Meetings</h3>
+      <h3>Assigned Meetings</h3>
       {meetings.length === 0 ? (
         <p>No meetings assigned to this opportunity.</p>
       ) : (
