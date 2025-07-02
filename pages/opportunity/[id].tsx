@@ -37,8 +37,8 @@ export default function MeetingDetailPage() {
 
   return (
     <div className="p-10 max-w-4xl mx-auto space-y-8">
-      <Link href="/dashboard">
-        <Button variant="ghost">Back to Dashboard</Button>
+      <Link href="/dashboard" className="text-blue-600 hover:underline">
+        Back to Dashboard
       </Link>
 
       <div className="text-3xl font-semibold">{data.title}</div>
@@ -52,7 +52,12 @@ export default function MeetingDetailPage() {
       <div className="bg-white rounded-2xl shadow p-6">
         <div className="flex justify-between items-center mb-2">
           <h2 className="text-xl font-bold">Transcript</h2>
-          <Button onClick={downloadTranscript}>Download Transcript</Button>
+          <button
+            onClick={downloadTranscript}
+            className="bg-black text-white px-4 py-2 rounded hover:bg-gray-800 transition"
+          >
+            Download Transcript
+          </button>
         </div>
         <div className="text-gray-700 whitespace-pre-wrap max-h-[400px] overflow-y-auto">
           {data.transcript}
@@ -61,5 +66,6 @@ export default function MeetingDetailPage() {
     </div>
   );
 }
+
 
 
