@@ -1,29 +1,31 @@
 'use client'
 
-import { useRouter } from 'next/router'
 import { useEffect, useState } from 'react'
+import { useParams } from 'next/navigation'
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
 import Link from 'next/link'
 
 const supabase = createClientComponentClient()
 
 export default function OpportunityPage() {
-  const router = useRouter()
+  const params = useParams()
+  const opportunityId = params?.id as string
   const [opportunity, setOpportunity] = useState<any>(null)
   const [meetings, setMeetings] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    if (!router.isReady) return
-
-    const opportunityId = router.query.id
     if (!opportunityId) return
 
     const fetchData = async () => {
+      setLoading(true)
+
       const { data: opp } = await supabase
         .from('opportunities')
         .select('*, clients(name)')
         .eq('id', opportunityId)
         .single()
+
       setOpportunity(opp)
 
       const { data: mtgs } = await supabase
@@ -31,14 +33,16 @@ export default function OpportunityPage() {
         .select('*')
         .eq('opportunity_id', opportunityId)
         .order('created_at', { ascending: false })
+
       setMeetings(mtgs || [])
+      setLoading(false)
     }
 
     fetchData()
-  }, [router.isReady])
+  }, [opportunityId])
 
-  if (!router.isReady || !router.query.id) return <p>Loading...</p>
-  if (!opportunity) return <p>Loading opportunity details...</p>
+  if (loading) return <p>Loading...</p>
+  if (!opportunity) return <p>Opportunity not found.</p>
 
   return (
     <div className="p-6 max-w-4xl mx-auto">
