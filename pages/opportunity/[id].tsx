@@ -1,5 +1,8 @@
 'use client'
 
+// Displays opportunity details along with any assigned meetings.
+// Now uses an error state to surface fetch failures to the user.
+
 import { useRouter } from 'next/router'
 import { useEffect, useState } from 'react'
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
@@ -14,12 +17,15 @@ export default function OpportunityPage() {
   const [opportunity, setOpportunity] = useState<any>(null)
   const [meetings, setMeetings] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
+  // Track any errors that occur during data fetching
+  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     if (!opportunityId) return
 
     const fetchData = async () => {
       try {
+        setError(null)
         const {
           data: opp,
           error: oppError,
@@ -28,7 +34,10 @@ export default function OpportunityPage() {
           .select('*, clients(name)')
           .eq('id', opportunityId)
           .single()
-        if (oppError) console.error(oppError)
+        if (oppError) {
+          console.error(oppError)
+          setError(oppError.message)
+        }
         setOpportunity(opp)
 
         if (opp) {
@@ -40,7 +49,10 @@ export default function OpportunityPage() {
             .select('*')
             .eq('opportunity_id', opportunityId)
             .order('created_at', { ascending: false })
-          if (mtgError) console.error(mtgError)
+          if (mtgError) {
+            console.error(mtgError)
+            setError(mtgError.message)
+          }
           setMeetings(mtgs || [])
         }
       } finally {
@@ -52,6 +64,7 @@ export default function OpportunityPage() {
   }, [opportunityId])
 
   if (loading) return <p>Loading...</p>
+  if (error) return <p>Error: {error}</p>
   if (!opportunity) return <p>Opportunity not found.</p>
 
   return (
@@ -77,6 +90,7 @@ export default function OpportunityPage() {
               <h3 className="text-lg font-semibold">{meeting.title || 'Untitled Meeting'}</h3>
               <p className="text-sm text-gray-500">
                 {new Date(meeting.created_at).toLocaleString()}
+
               </p>
               <p className="mt-2 text-gray-700 line-clamp-2">
                 {meeting.summary || 'No summary available.'}
