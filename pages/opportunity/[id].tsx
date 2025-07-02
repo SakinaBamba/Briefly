@@ -9,30 +9,47 @@ const supabase = createClientComponentClient()
 
 export default function OpportunityPage() {
   const params = useParams()
-  const opportunityId = params?.id as string
+  const opportunityId = Array.isArray(params?.id) ? params.id[0] : params?.id
+
   const [opportunity, setOpportunity] = useState<any>(null)
   const [meetings, setMeetings] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    if (!opportunityId) return
+    if (!opportunityId) {
+      console.warn('Opportunity ID missing from URL.')
+      return
+    }
 
     const fetchData = async () => {
       setLoading(true)
+      console.log('Fetching opportunity with ID:', opportunityId)
 
-      const { data: opp } = await supabase
+      const { data: opp, error: oppError } = await supabase
         .from('opportunities')
         .select('*, clients(name)')
         .eq('id', opportunityId)
         .single()
 
+      if (oppError) {
+        console.error('Error fetching opportunity:', oppError)
+      } else {
+        console.log('Fetched opportunity:', opp)
+      }
+
       setOpportunity(opp)
 
-      const { data: mtgs } = await supabase
+      const { data: mtgs, error: mtgsError } = await supabase
         .from('meetings')
         .select('*')
         .eq('opportunity_id', opportunityId)
         .order('created_at', { ascending: false })
+
+      if (mtgsError) {
+        console.error('Error fetching meetings:', mtgsError)
+      } else {
+        console.log('Fetched meetings:', mtgs)
+      }
 
       setMeetings(mtgs || [])
       setLoading(false)
@@ -51,7 +68,7 @@ export default function OpportunityPage() {
       </Link>
 
       <h1 className="text-2xl font-bold mt-4">{opportunity.name}</h1>
-      <p className="text-gray-500 mb-6">Client: {opportunity.clients?.name}</p>
+      <p className="text-gray-500 mb-6">Client: {opportunity.clients?.name || 'Unknown'}</p>
 
       <h2 className="text-xl font-semibold mb-2">Assigned Meetings</h2>
       {meetings.length === 0 ? (
@@ -78,4 +95,5 @@ export default function OpportunityPage() {
     </div>
   )
 }
+
 
