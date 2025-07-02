@@ -19,9 +19,10 @@ export default function OpportunityPage() {
 
     const fetchOpportunityData = async () => {
       try {
+        // Use correct foreign key name to disambiguate relationship
         const { data: opportunityData, error: opportunityError } = await supabase
           .from('opportunities')
-          .select('*, clients!client_id(name)')
+          .select('*, clients!opportunities_client_id_fkey(name)')
           .eq('id', opportunityId)
           .single()
 
@@ -47,14 +48,16 @@ export default function OpportunityPage() {
     fetchOpportunityData()
   }, [opportunityId, supabase])
 
-  if (loading) return <div>Loading...</div>
-  if (error) return <div className="text-red-600">Error: {error}</div>
-  if (!opportunity) return <div>Opportunity not found</div>
+  if (loading) return <div className="p-6">Loading...</div>
+  if (error) return <div className="p-6 text-red-600">Error: {error}</div>
+  if (!opportunity) return <div className="p-6">Opportunity not found</div>
 
   return (
-    <div className="p-6">
+    <div className="p-6 max-w-3xl mx-auto">
       <h1 className="text-3xl font-bold mb-2">{opportunity.name}</h1>
-      <p className="text-gray-500 mb-6">Client: {opportunity.clients?.name || 'N/A'}</p>
+      <p className="text-gray-500 mb-6">
+        Client: {opportunity.clients?.name || 'N/A'}
+      </p>
 
       <h2 className="text-xl font-semibold mb-3">Assigned Meetings</h2>
       {meetings.length === 0 ? (
@@ -62,8 +65,14 @@ export default function OpportunityPage() {
       ) : (
         <ul className="space-y-4">
           {meetings.map((meeting: any) => (
-            <li key={meeting.id} className="border rounded p-4 hover:bg-gray-50">
-              <a href={`/meeting/${meeting.id}`} className="text-blue-600 hover:underline">
+            <li
+              key={meeting.id}
+              className="border rounded p-4 hover:bg-gray-50 transition"
+            >
+              <a
+                href={`/meeting/${meeting.id}`}
+                className="text-blue-600 hover:underline text-lg"
+              >
                 {meeting.title || 'Untitled Meeting'}
               </a>
               <div className="text-sm text-gray-500">
@@ -76,6 +85,5 @@ export default function OpportunityPage() {
     </div>
   )
 }
-
 
 
