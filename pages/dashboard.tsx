@@ -3,7 +3,6 @@
 import { useEffect, useState } from 'react'
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
 import { useRouter } from 'next/router'
-import Link from 'next/link'
 
 export default function Dashboard() {
   const supabase = createClientComponentClient()
@@ -38,13 +37,18 @@ export default function Dashboard() {
 
   const createClient = async (meetingId: string) => {
     const name = newClientNames[meetingId]
+    if (!name) return
+
     const existing = clients.find(c => c.name.toLowerCase() === name.toLowerCase())
     if (existing) {
       alert('Client already exists.')
       return
     }
 
-    const { data } = await supabase.from('clients').insert([{ name }]).select()
+    const { data, error } = await supabase
+      .from('clients')
+      .insert([{ name }])
+      .select()
     if (data) {
       setClients(prev => [...prev, ...data])
       setSelectedClientIds(prev => ({ ...prev, [meetingId]: data[0].id }))
@@ -65,16 +69,22 @@ export default function Dashboard() {
       return
     }
 
-    const { data } = await supabase.from('opportunities').insert([{ name, client_id: clientId }]).select()
+    const { data, error } = await supabase
+      .from('opportunities')
+      .insert([{ name, client_id: clientId }])
+      .select()
     if (data) {
       setOpportunities(prev => [...prev, ...data])
       setSelectedOpportunities(prev => ({ ...prev, [meetingId]: data[0].id }))
       setNewOpportunities(prev => ({ ...prev, [meetingId]: '' }))
 
-      await supabase.from('meetings')
+      // update meeting with client + opportunity
+      await supabase
+        .from('meetings')
         .update({ client_id: clientId, opportunity_id: data[0].id })
         .eq('id', meetingId)
 
+      // hide from dashboard
       setMeetings(prev => prev.filter(m => m.id !== meetingId))
     }
   }
@@ -100,29 +110,77 @@ export default function Dashboard() {
         <p>You have no unassigned meetings.</p>
       ) : (
         meetings.map(meeting => (
-          <Link key={meeting.id} href={`/opportunity/${meeting.id}`} legacyBehavior>
-            <a style={{ textDecoration: 'none', color: 'inherit' }}>
-              <div
-                style={{
-                  border: '1px solid #ccc',
-                  padding: 12,
-                  marginBottom: 12,
-                  borderRadius: 12,
-                  backgroundColor: '#fafafa',
-                  cursor: 'pointer',
-                }}
+          <div key={meeting.id} style={{ border: '1px solid #ccc', padding: 8, marginBottom: 12 }}>
+            <h4>{meeting.title || 'Untitled Meeting'}</h4>
+
+            <div>
+              <label>Assign to Existing Client:</label>
+              <select
+                value={selectedClientIds[meeting.id] || ''}
+                onChange={e =>
+                  setSelectedClientIds(prev => ({ ...prev, [meeting.id]: e.target.value }))
+                }
               >
-                <h4 style={{ marginBottom: 8 }}>{meeting.title || 'Untitled Meeting'}</h4>
-                <div style={{ fontSize: 12, color: '#666' }}>
-                  {new Date(meeting.date).toLocaleString()}
+                <option value="">-- Select Client --</option>
+                {clients.map(c => (
+                  <option key={c.id} value={c.id}>{c.name}</option>
+                ))}
+              </select>
+            </div>
+
+            {selectedClientIds[meeting.id] && (
+              <>
+                <div>
+                  <label>Assign to Existing Opportunity:</label>
+                  <select
+                    value={selectedOpportunities[meeting.id] || ''}
+                    onChange={e =>
+                      setSelectedOpportunities(prev => ({ ...prev, [meeting.id]: e.target.value }))
+                    }
+                  >
+                    <option value="">-- Select Opportunity --</option>
+                    {opportunities
+                      .filter(o => o.client_id === selectedClientIds[meeting.id])
+                      .map(o => (
+                        <option key={o.id} value={o.id}>{o.name}</option>
+                      ))}
+                  </select>
                 </div>
+
+                <button onClick={() => assignExisting(meeting.id)}>Assign</button>
+              </>
+            )}
+
+            <div style={{ marginTop: 10 }}>
+              <label>Create New Client:</label>
+              <input
+                value={newClientNames[meeting.id] || ''}
+                onChange={e =>
+                  setNewClientNames(prev => ({ ...prev, [meeting.id]: e.target.value }))
+                }
+              />
+              <button onClick={() => createClient(meeting.id)}>Create</button>
+            </div>
+
+            {selectedClientIds[meeting.id] && (
+              <div>
+                <label>Create New Opportunity:</label>
+                <input
+                  value={newOpportunities[meeting.id] || ''}
+                  onChange={e =>
+                    setNewOpportunities(prev => ({ ...prev, [meeting.id]: e.target.value }))
+                  }
+                />
+                <button onClick={() => createOpportunity(meeting.id)}>Create & Assign</button>
               </div>
-            </a>
-          </Link>
+            )}
+          </div>
         ))
       )}
     </main>
   )
 }
+
+
 
 
