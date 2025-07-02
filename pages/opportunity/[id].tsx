@@ -13,30 +13,46 @@ export default function OpportunityPage() {
 
   const [opportunity, setOpportunity] = useState<any>(null)
   const [meetings, setMeetings] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     if (!opportunityId) return
 
     const fetchData = async () => {
-      const { data: opp } = await supabase
-        .from('opportunities')
-        .select('*, clients(name)')
-        .eq('id', opportunityId)
-        .single()
-      setOpportunity(opp)
+      try {
+        const {
+          data: opp,
+          error: oppError,
+        } = await supabase
+          .from('opportunities')
+          .select('*, clients(name)')
+          .eq('id', opportunityId)
+          .single()
+        if (oppError) console.error(oppError)
+        setOpportunity(opp)
 
-      const { data: mtgs } = await supabase
-        .from('meetings')
-        .select('*')
-        .eq('opportunity_id', opportunityId)
-        .order('created_at', { ascending: false })
-      setMeetings(mtgs || [])
+        if (opp) {
+          const {
+            data: mtgs,
+            error: mtgError,
+          } = await supabase
+            .from('meetings')
+            .select('*')
+            .eq('opportunity_id', opportunityId)
+            .order('created_at', { ascending: false })
+          if (mtgError) console.error(mtgError)
+          setMeetings(mtgs || [])
+        }
+      } finally {
+        setLoading(false)
+      }
     }
 
     fetchData()
   }, [opportunityId])
 
-  if (!opportunity) return <p>Loading...</p>
+  if (loading) return <p>Loading...</p>
+  if (!opportunity) return <p>Opportunity not found.</p>
 
   return (
     <div className="p-6 max-w-4xl mx-auto">
