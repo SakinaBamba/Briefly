@@ -1,34 +1,33 @@
-// File: pages/opportunity/[meetingId].tsx
+// File: pages/opportunity/[id].tsx
 
 import { useRouter } from 'next/router';
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { Button } from '@/components/ui/button';
 
 export default function MeetingDetailPage() {
   const router = useRouter();
-  const { meetingId } = router.query;
+  const { id } = router.query;
 
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState(null);
 
   useEffect(() => {
-    if (!meetingId) return;
+    if (!id) return;
     const fetchData = async () => {
-      const res = await fetch(`/api/getMeetingDetails?id=${meetingId}`);
+      const res = await fetch(`/api/getMeetingDetails?id=${id}`);
       const json = await res.json();
       setData(json);
       setLoading(false);
     };
     fetchData();
-  }, [meetingId]);
+  }, [id]);
 
   const downloadTranscript = () => {
     const blob = new Blob([data?.transcript || ''], { type: 'text/plain' });
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `transcript-${meetingId}.txt`;
+    a.download = `transcript-${id}.txt`;
     a.click();
     window.URL.revokeObjectURL(url);
   };
