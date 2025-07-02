@@ -21,9 +21,9 @@
     "formidable": "^3.5.0",
     "@azure/msal-node": "^3.5.1",
     "isomorphic-fetch": "^3.0.0",
-    "axios": "^1.6.0"
+    "axios": "^1.6.0",
+    "openai": "^4.0.0"
   },
-  
   "devDependencies": {
     "typescript": "^5.2.2",
     "@types/react": "^18.2.21",
@@ -33,3 +33,4 @@
     "eslint-config-next": "13.5.11"
   }
 }
+
