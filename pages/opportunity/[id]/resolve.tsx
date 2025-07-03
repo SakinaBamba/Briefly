@@ -4,7 +4,6 @@
 import { useEffect, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
-import { Database } from '@/types/supabase'
 import { OpenAI } from 'openai'
 
 export default function ResolvePage({ params }: { params: { id: string } }) {
