@@ -7,6 +7,7 @@ import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
 import { Database } from '@/types/supabase'
 import { OpenAI } from 'openai'
 
+
 type Meeting = Database['public']['Tables']['meetings']['Row']
 
 const openai = new OpenAI({
