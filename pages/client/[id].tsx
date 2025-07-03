@@ -19,6 +19,9 @@ export default function ClientPage() {
   const [newOpportunityName, setNewOpportunityName] = useState('')
   const [creating, setCreating] = useState(false)
 
+  const [editingName, setEditingName] = useState(false)
+  const [newClientName, setNewClientName] = useState('')
+
   const handleCreateOpportunity = async () => {
     if (!newOpportunityName || !clientId) return
     const { data, error } = await supabase
@@ -34,15 +37,29 @@ export default function ClientPage() {
     }
   }
 
+  const handleUpdateClientName = async () => {
+    if (!newClientName || !clientId) return
+    const { data, error } = await supabase
+      .from('clients')
+      .update({ name: newClientName })
+      .eq('id', clientId)
+      .select()
+      .single()
+
+    if (error) {
+      console.error('Failed to update client name:', error)
+    } else {
+      setClient(data)
+      setEditingName(false)
+    }
+  }
+
   useEffect(() => {
     if (!clientId) return
 
     const fetchData = async () => {
       try {
-        const {
-          data: clientData,
-          error: clientError,
-        } = await supabase
+        const { data: clientData, error: clientError } = await supabase
           .from('clients')
           .select('*')
           .eq('id', clientId)
@@ -74,7 +91,24 @@ export default function ClientPage() {
 
   return (
     <div style={{ padding: '2rem' }}>
-      <h1>Client: {client.name}</h1>
+      <h1>Client: 
+        {editingName ? (
+          <>
+            <input
+              type="text"
+              value={newClientName}
+              onChange={(e) => setNewClientName(e.target.value)}
+              style={{ marginRight: "1rem" }}
+            />
+            <button onClick={handleUpdateClientName}>Save</button>
+            <button onClick={() => setEditingName(false)} style={{ marginLeft: "0.5rem" }}>Cancel</button>
+          </>
+        ) : (
+          <>
+            {client.name} <button onClick={() => { setEditingName(true); setNewClientName(client.name); }}>Edit</button>
+          </>
+        )}
+      </h1>
 
       <div style={{ marginBottom: '2rem' }}>
         <button onClick={() => setCreating(!creating)}>
