@@ -15,37 +15,7 @@ export default function OpportunityPage() {
   const [error, setError] = useState<string | null>(null)
 
   const [creating, setCreating] = useState(false)
-  const [clients, setClients] = useState<any[]>([])
   const [newName, setNewName] = useState('')
-  const [selectedClientId, setSelectedClientId] = useState('')
-
-  useEffect(() => {
-    if (creating) {
-      fetchClients()
-    }
-  }, [creating])
-
-  const fetchClients = async () => {
-    const { data, error } = await supabase.from('clients').select('*')
-    if (error) console.error('Failed to fetch clients:', error)
-    else setClients(data)
-  }
-
-  const handleCreateOpportunity = async () => {
-    if (!newName || !selectedClientId) return
-    const { data, error } = await supabase
-      .from('opportunities')
-      .insert({ name: newName, client_id: selectedClientId })
-      .select()
-      .single()
-
-    if (error) {
-      console.error('Insert error:', error)
-      setError('Failed to create opportunity')
-    } else {
-      router.push(`/opportunity/${data.id}`)
-    }
-  }
 
   useEffect(() => {
     if (!opportunityId || typeof opportunityId !== 'string') return
@@ -54,7 +24,7 @@ export default function OpportunityPage() {
       try {
         const { data: opportunityData, error: opportunityError } = await supabase
           .from('opportunities')
-          .select('*, client:clients(name)')
+          .select('*, client:clients(name, id)')
           .eq('id', opportunityId)
           .single()
 
@@ -80,6 +50,23 @@ export default function OpportunityPage() {
     fetchOpportunityData()
   }, [opportunityId])
 
+  const handleCreateOpportunity = async () => {
+    if (!newName || !opportunity?.client?.id) return
+
+    const { data, error } = await supabase
+      .from('opportunities')
+      .insert({ name: newName, client_id: opportunity.client.id })
+      .select()
+      .single()
+
+    if (error) {
+      console.error('Insert error:', error)
+      setError('Failed to create opportunity')
+    } else {
+      router.push(`/opportunity/${data.id}`)
+    }
+  }
+
   if (loading) return <p>Loading...</p>
   if (error) return <p>{error}</p>
 
@@ -98,15 +85,7 @@ export default function OpportunityPage() {
               onChange={(e) => setNewName(e.target.value)}
               style={{ marginRight: '1rem' }}
             />
-            <select value={selectedClientId} onChange={(e) => setSelectedClientId(e.target.value)}>
-              <option value="">Select client</option>
-              {clients.map((client) => (
-                <option key={client.id} value={client.id}>
-                  {client.name}
-                </option>
-              ))}
-            </select>
-            <button onClick={handleCreateOpportunity} style={{ marginLeft: '1rem' }}>Create</button>
+            <button onClick={handleCreateOpportunity}>Create</button>
           </div>
         )}
       </div>
