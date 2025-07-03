@@ -15,6 +15,7 @@
     "@supabase/auth-helpers-nextjs": "^0.8.1",
     "@microsoft/teams-js": "^2.16.0",
     "docx": "^8.0.3",
+    "file-saver": "^2.0.5",
     "node-fetch": "^3.3.2",
     "mammoth": "^1.6.0",
     "pdf-parse": "^1.1.1",
@@ -33,4 +34,3 @@
     "eslint-config-next": "13.5.11"
   }
 }
-
