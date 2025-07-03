@@ -8,6 +8,7 @@ import { OpenAI } from 'openai'
 import { Database } from '@/types/supabase'
 
 
+
 export default function ResolvePage({ params }: { params: { id: string } }) {
   const supabase = createClientComponentClient<Database>()
   const searchParams = useSearchParams()
