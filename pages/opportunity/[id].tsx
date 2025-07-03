@@ -6,134 +6,66 @@ import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
 
 export default function OpportunityPage() {
   const router = useRouter()
-  const { id: opportunityId } = router.query
   const supabase = createClientComponentClient()
+  const { id: opportunityId } = router.query
 
   const [opportunity, setOpportunity] = useState<any>(null)
   const [meetings, setMeetings] = useState<any[]>([])
-  const [selectedMeetings, setSelectedMeetings] = useState<string[]>([])
-  const [docType, setDocType] = useState<'proposal' | 'contract'>('proposal')
-  const [generatedDoc, setGeneratedDoc] = useState('')
-  const [generating, setGenerating] = useState(false)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    if (!opportunityId) return
-    const fetchOpportunity = async () => {
-      const { data } = await supabase
-        .from('opportunities')
-        .select('*')
-        .eq('id', opportunityId)
-        .single()
-      setOpportunity(data)
+    if (!opportunityId || typeof opportunityId !== 'string') return
+
+    const fetchOpportunityData = async () => {
+      try {
+        const { data: opportunityData, error: opportunityError } = await supabase
+          .from('opportunities')
+          .select('*, client:clients(name)')
+          .eq('id', opportunityId)
+          .single()
+
+        if (opportunityError) throw opportunityError
+        setOpportunity(opportunityData)
+
+        const { data: meetingsData, error: meetingsError } = await supabase
+          .from('meetings')
+          .select('*')
+          .eq('opportunity_id', opportunityId)
+          .order('created_at', { ascending: false })
+
+        if (meetingsError) throw meetingsError
+        setMeetings(meetingsData)
+      } catch (err: any) {
+        console.error('Fetch error:', err)
+        setError('Failed to load opportunity')
+      } finally {
+        setLoading(false)
+      }
     }
 
-    const fetchMeetings = async () => {
-      const { data } = await supabase
-        .from('meetings')
-        .select('*')
-        .eq('opportunity_id', opportunityId)
-        .order('created_at', { ascending: true })
-      setMeetings(data || [])
-    }
-
-    fetchOpportunity()
-    fetchMeetings()
+    fetchOpportunityData()
   }, [opportunityId])
 
-  const handleMeetingSelect = (meetingId: string) => {
-    setSelectedMeetings((prev) =>
-      prev.includes(meetingId)
-        ? prev.filter((id) => id !== meetingId)
-        : [...prev, meetingId]
-    )
-  }
-
-  const handleGenerate = async () => {
-    if (!selectedMeetings.length || !opportunityId) return
-    setGenerating(true)
-    setGeneratedDoc('')
-
-    try {
-      const res = await fetch('/api/generateDocument', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          opportunity_id: opportunityId,
-          type: docType,
-          meetings: selectedMeetings
-        })
-      })
-
-      const data = await res.json()
-
-      if (!res.ok) {
-        console.error('Server error:', data)
-        alert('❌ Failed to generate document. Check logs for details.')
-      } else if (!data.content) {
-        console.warn('Empty response from OpenAI:', data)
-        alert('⚠️ Received empty document. Try again or check backend logs.')
-      }
-
-      setGeneratedDoc(data.content || '')
-    } catch (err) {
-      console.error('Network or parsing error:', err)
-      alert('❌ Error occurred while generating the document.')
-    } finally {
-      setGenerating(false)
-    }
-  }
+  if (loading) return <p>Loading...</p>
+  if (error) return <p>{error}</p>
 
   return (
-    <main style={{ padding: 24 }}>
-      <h1>Opportunity Page</h1>
-      {opportunity && (
-        <h2 style={{ marginBottom: 24 }}>
-          {opportunity.name}
-        </h2>
-      )}
-
-      <h3>Select Meetings</h3>
-      {meetings.map((m) => (
-        <div key={m.id} style={{ marginBottom: 8 }}>
-          <label>
-            <input
-              type="checkbox"
-              checked={selectedMeetings.includes(m.id)}
-              onChange={() => handleMeetingSelect(m.id)}
-            />{' '}
-            {new Date(m.created_at).toLocaleDateString()} — {m.summary?.slice(0, 60)}...
-          </label>
-        </div>
-      ))}
-
-      <div style={{ marginTop: 16, marginBottom: 16 }}>
-        <label>
-          <select
-            value={docType}
-            onChange={(e) => setDocType(e.target.value as 'proposal' | 'contract')}
-          >
-            <option value="proposal">Proposal</option>
-            <option value="contract">Contract</option>
-          </select>
-        </label>
-      </div>
-
-      <button onClick={handleGenerate} disabled={generating || selectedMeetings.length === 0}>
-        {generating ? 'Generating...' : 'Generate Document'}
-      </button>
-
-      {generatedDoc && (
-        <div style={{ marginTop: 32 }}>
-          <h3>Generated {docType.charAt(0).toUpperCase() + docType.slice(1)}</h3>
-          <textarea
-            value={generatedDoc}
-            readOnly
-            rows={20}
-            style={{ width: '100%', fontFamily: 'monospace' }}
-          />
-        </div>
-      )}
-    </main>
+    <div style={{ padding: '2rem' }}>
+      <h1>Opportunity: {opportunity?.name}</h1>
+      <h2>Client: {opportunity?.client?.name}</h2>
+      <h3>Meetings:</h3>
+      <ul>
+        {meetings.map((m) => (
+          <li key={m.id}>
+            <a href={`/meeting/${m.id}`} style={{ textDecoration: 'underline' }}>
+              <strong>{m.title}</strong>
+            </a>{' '}
+            — {new Date(m.created_at).toLocaleString()}
+          </li>
+        ))}
+      </ul>
+    </div>
   )
 }
 
