@@ -1,71 +1,40 @@
-'use client'
+import { Document, Packer, Paragraph, TextRun } from 'docx'
+import { saveAs } from 'file-saver'
 
-import { useEffect, useState } from 'react'
-import { useRouter } from 'next/router'
-import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
+const handleGenerate = async () => {
+  if (!documentType || selectedMeetingIds.length === 0) return
 
-export default function OpportunityPage() {
-  const router = useRouter()
-  const supabase = createClientComponentClient()
-  const { id: opportunityId } = router.query
+  const selected = meetings.filter((m) => selectedMeetingIds.includes(m.id))
+  const titleText = documentType === 'proposal' ? 'Proposal Document' : 'Contract Document'
 
-  const [opportunity, setOpportunity] = useState<any>(null)
-  const [meetings, setMeetings] = useState<any[]>([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
+  const doc = new Document({
+    sections: [
+      {
+        properties: {},
+        children: [
+          new Paragraph({
+            children: [
+              new TextRun({ text: titleText, bold: true, size: 36 }),
+              new TextRun('\n\n'),
+            ],
+          }),
+          ...selected.map((m, idx) => (
+            new Paragraph({
+              children: [
+                new TextRun({ text: `${idx + 1}. ${m.title}`, bold: true, size: 28 }),
+                new TextRun('\n'),
+                new TextRun({ text: m.summary || 'No summary available.', size: 24 }),
+                new TextRun('\n\n'),
+              ],
+            })
+          )),
+        ],
+      },
+    ],
+  })
 
-  useEffect(() => {
-    if (!opportunityId || typeof opportunityId !== 'string') return
-
-    const fetchOpportunityData = async () => {
-      try {
-        const { data: opportunityData, error: opportunityError } = await supabase
-          .from('opportunities')
-          .select('*, client:clients(name)')
-          .eq('id', opportunityId)
-          .single()
-
-        if (opportunityError) throw opportunityError
-        setOpportunity(opportunityData)
-
-        const { data: meetingsData, error: meetingsError } = await supabase
-          .from('meetings')
-          .select('*')
-          .eq('opportunity_id', opportunityId)
-          .order('created_at', { ascending: false })
-
-        if (meetingsError) throw meetingsError
-        setMeetings(meetingsData)
-      } catch (err: any) {
-        console.error('Fetch error:', err)
-        setError('Failed to load opportunity')
-      } finally {
-        setLoading(false)
-      }
-    }
-
-    fetchOpportunityData()
-  }, [opportunityId])
-
-  if (loading) return <p>Loading...</p>
-  if (error) return <p>{error}</p>
-
-  return (
-    <div style={{ padding: '2rem' }}>
-      <h1>Opportunity: {opportunity?.name}</h1>
-      <h2>Client: {opportunity?.client?.name}</h2>
-      <h3>Meetings:</h3>
-      <ul>
-        {meetings.map((m) => (
-          <li key={m.id}>
-            <a href={`/meeting/${m.id}`} style={{ textDecoration: 'underline' }}>
-              <strong>{m.title}</strong>
-            </a>{' '}
-            — {new Date(m.created_at).toLocaleString()}
-          </li>
-        ))}
-      </ul>
-    </div>
-  )
+  const blob = await Packer.toBlob(doc)
+  const filename = `${titleText.replace(' ', '_')}_${new Date().toISOString()}.docx`
+  saveAs(blob, filename)
 }
 
