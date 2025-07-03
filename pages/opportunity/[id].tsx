@@ -24,7 +24,7 @@ export default function OpportunityDetail() {
   }, [id])
 
   async function fetchOpportunity() {
-    const { data } = await supabase.from("opportunities").select("*"").eq("id", id).single()
+    const { data } = await supabase.from("opportunities").select("*").eq("id", id).single()
     setOpportunity(data)
   }
 
