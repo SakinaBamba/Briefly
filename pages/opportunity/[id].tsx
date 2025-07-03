@@ -14,9 +14,6 @@ export default function OpportunityPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
-  const [creating, setCreating] = useState(false)
-  const [newName, setNewName] = useState('')
-
   useEffect(() => {
     if (!opportunityId || typeof opportunityId !== 'string') return
 
@@ -24,7 +21,7 @@ export default function OpportunityPage() {
       try {
         const { data: opportunityData, error: opportunityError } = await supabase
           .from('opportunities')
-          .select('*, client:clients(name, id)')
+          .select('*, client:clients(name)')
           .eq('id', opportunityId)
           .single()
 
@@ -50,46 +47,11 @@ export default function OpportunityPage() {
     fetchOpportunityData()
   }, [opportunityId])
 
-  const handleCreateOpportunity = async () => {
-    if (!newName || !opportunity?.client?.id) return
-
-    const { data, error } = await supabase
-      .from('opportunities')
-      .insert({ name: newName, client_id: opportunity.client.id })
-      .select()
-      .single()
-
-    if (error) {
-      console.error('Insert error:', error)
-      setError('Failed to create opportunity')
-    } else {
-      router.push(`/opportunity/${data.id}`)
-    }
-  }
-
   if (loading) return <p>Loading...</p>
   if (error) return <p>{error}</p>
 
   return (
     <div style={{ padding: '2rem' }}>
-      <div style={{ marginBottom: '2rem' }}>
-        <button onClick={() => setCreating(!creating)}>
-          {creating ? 'Cancel' : 'Create New Opportunity'}
-        </button>
-        {creating && (
-          <div style={{ marginTop: '1rem' }}>
-            <input
-              type="text"
-              placeholder="Opportunity name"
-              value={newName}
-              onChange={(e) => setNewName(e.target.value)}
-              style={{ marginRight: '1rem' }}
-            />
-            <button onClick={handleCreateOpportunity}>Create</button>
-          </div>
-        )}
-      </div>
-
       <h1>Opportunity: {opportunity?.name}</h1>
       <h2>Client: {opportunity?.client?.name}</h2>
       <h3>Meetings:</h3>
@@ -106,6 +68,5 @@ export default function OpportunityPage() {
     </div>
   )
 }
-
 
 
