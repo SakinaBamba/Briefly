@@ -5,6 +5,7 @@ import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
 import { Document, Packer, Paragraph, TextRun } from 'docx'
 import ConfirmFlagsModal from '@/components/ConfirmFlagsModal'
 
+
 export default function OpportunityPage() {
   const router = useRouter()
   const supabase = createClientComponentClient()
