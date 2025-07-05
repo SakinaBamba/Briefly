@@ -37,7 +37,8 @@ ${summaries.map((s, i) => `Meeting ${i + 1}: ${s}`).join('\n\n')}`
           role: 'user',
           content: prompt
         }
-      ]
+      ],
+      response_format: 'json' as const
     })
 
     const response = completion.choices[0].message.content
