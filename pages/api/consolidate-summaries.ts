@@ -1,3 +1,4 @@
+// /pages/api/consolidate-summaries.ts
 import { NextApiRequest, NextApiResponse } from 'next'
 import { OpenAI } from 'openai'
 
@@ -39,13 +40,22 @@ ${summaries.map((s, i) => `Meeting ${i + 1}: ${s}`).join('\n\n')}`
       ]
     })
 
-    const response = completion.choices[0].message.content
-    const parsed = JSON.parse(response || '{}')
+    const raw = completion.choices[0].message.content
+    console.log('[GPT RESPONSE]', raw)
+
+    let parsed
+    try {
+      parsed = JSON.parse(raw || '{}')
+    } catch (jsonErr) {
+      console.error('Failed to parse GPT response as JSON:', jsonErr)
+      return res.status(500).json({ error: 'Invalid JSON returned by OpenAI' })
+    }
 
     res.status(200).json(parsed)
   } catch (err) {
     console.error('Consolidation error:', err)
     res.status(500).json({ error: 'Failed to consolidate summaries' })
   }
-}
+} 
+
 
