@@ -37,7 +37,8 @@ ${summaries.map((s, i) => `Meeting ${i + 1}: ${s}`).join('\n\n')}`
           role: 'user',
           content: prompt
         }
-      ]
+      ],
+      response_format: 'json'
     })
 
     const raw = completion.choices[0].message.content
@@ -45,7 +46,7 @@ ${summaries.map((s, i) => `Meeting ${i + 1}: ${s}`).join('\n\n')}`
 
     let parsed
     try {
-      parsed = JSON.parse(raw || '{}')
+      parsed = typeof raw === 'string' ? JSON.parse(raw) : raw
     } catch (jsonErr) {
       console.error('Failed to parse GPT response as JSON:', jsonErr)
       return res.status(500).json({ error: 'Invalid JSON returned by OpenAI' })
@@ -56,6 +57,6 @@ ${summaries.map((s, i) => `Meeting ${i + 1}: ${s}`).join('\n\n')}`
     console.error('Consolidation error:', err)
     res.status(500).json({ error: 'Failed to consolidate summaries' })
   }
-} 
+}
 
 
