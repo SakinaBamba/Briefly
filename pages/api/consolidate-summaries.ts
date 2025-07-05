@@ -1,4 +1,3 @@
-// /pages/api/consolidate-summaries.ts
 import { NextApiRequest, NextApiResponse } from 'next'
 import { OpenAI } from 'openai'
 
@@ -14,7 +13,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   try {
-    const prompt = `You are a proposal assistant. Compare the following meeting summaries. Identify any contradictions (e.g., differences in quantities, vendors, timelines). List each flagged item clearly, then generate a unified version of the summary after resolving contradictions. Use this JSON structure:
+    const prompt = `You are a proposal assistant. Compare the following meeting summaries. Identify any contradictions (e.g., differences in quantities, vendors, timelines). List each flagged item clearly, then generate a unified version of the summary after resolving contradictions. Respond ONLY in this JSON format:
 
 {
   "flags": [
@@ -37,8 +36,7 @@ ${summaries.map((s, i) => `Meeting ${i + 1}: ${s}`).join('\n\n')}`
           role: 'user',
           content: prompt
         }
-      ],
-      response_format: 'json_object'
+      ]
     })
 
     const response = completion.choices[0].message.content
@@ -49,5 +47,5 @@ ${summaries.map((s, i) => `Meeting ${i + 1}: ${s}`).join('\n\n')}`
     console.error('Consolidation error:', err)
     res.status(500).json({ error: 'Failed to consolidate summaries' })
   }
-} 
+}
 
