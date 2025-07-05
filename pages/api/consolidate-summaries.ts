@@ -38,7 +38,7 @@ ${summaries.map((s, i) => `Meeting ${i + 1}: ${s}`).join('\n\n')}`
           content: prompt
         }
       ],
-      response_format: 'json'
+      response_format: 'json_object'
     })
 
     const response = completion.choices[0].message.content
@@ -50,3 +50,4 @@ ${summaries.map((s, i) => `Meeting ${i + 1}: ${s}`).join('\n\n')}`
     res.status(500).json({ error: 'Failed to consolidate summaries' })
   }
 }
+
