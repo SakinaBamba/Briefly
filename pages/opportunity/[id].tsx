@@ -2,9 +2,8 @@
 import { useRouter } from 'next/router'
 import { useEffect, useState } from 'react'
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
-import { Document, Packer, Paragraph, TextRun } from 'docx'
+import { Document, Packer, Paragraph } from 'docx'
 import ConfirmFlagsModal from '@/components/ConfirmFlagsModal'
-
 
 export default function OpportunityPage() {
   const router = useRouter()
@@ -68,13 +67,12 @@ export default function OpportunityPage() {
     const selected = meetings.filter((m) => selectedMeetingIds.includes(m.id))
 
     if (selected.length === 1) {
-      // Old behavior for one meeting
       await generateDoc(selected[0].summary)
       setGenerating(false)
       return
     }
 
-    // New: Consolidate multiple summaries
+    // Step 1: Detect contradictions
     const res = await fetch('/api/consolidate-summaries', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -89,7 +87,23 @@ export default function OpportunityPage() {
 
   const handleConfirmFlags = async (resolutions: Record<string, string>) => {
     setShowModal(false)
-    await generateDoc(proposedSummary)
+    setGenerating(true)
+
+    // Step 2: Send overrides to backend to generate final document
+    const res = await fetch('/api/generateDocument', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        opportunity_id: id,
+        type: documentType,
+        meetings: selectedMeetingIds,
+        overrides: resolutions,
+      }),
+    })
+
+    const data = await res.json()
+    await generateDoc(data.content || '')
+    setGenerating(false)
   }
 
   return (
