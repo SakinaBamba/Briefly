@@ -1,55 +1,32 @@
-import { NextApiRequest, NextApiResponse } from 'next'
+// /pages/api/update-summary.ts
 import { createClient } from '@supabase/supabase-js'
-import OpenAI from 'openai'
+import { NextApiRequest, NextApiResponse } from 'next'
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
+  process.env.SUPABASE_SERVICE_ROLE_KEY! // Use service role for write access
 )
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-})
-
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  if (req.method !== 'POST') return res.status(405).end()
-
-  const { meeting_id, prompt } = req.body
-  if (!meeting_id || !prompt) {
-    return res.status(400).json({ success: false, error: 'Missing data' })
+  if (req.method !== 'POST') {
+    return res.status(405).json({ error: 'Method not allowed' })
   }
 
-  const { data: meeting, error: fetchError } = await supabase
+  const { meetingId, newSummary } = req.body
+
+  if (!meetingId || !newSummary) {
+    return res.status(400).json({ error: 'Missing meetingId or newSummary' })
+  }
+
+  const { error } = await supabase
     .from('meetings')
-    .select('transcript, summary')
-    .eq('id', meeting_id)
-    .single()
+    .update({ summary: newSummary })
+    .eq('id', meetingId)
 
-  if (fetchError || !meeting) {
-    return res.status(500).json({ success: false, error: 'Meeting not found' })
+  if (error) {
+    console.error('Failed to update summary:', error)
+    return res.status(500).json({ error: 'Failed to update summary' })
   }
 
-  try {
-    const completion = await openai.chat.completions.create({
-      model: 'gpt-4',
-      messages: [
-        { role: 'system', content: 'You are an assistant improving a meeting summary.' },
-        { role: 'user', content: `Original summary: ${meeting.summary}\nTranscript: ${meeting.transcript}\n\nInstruction: ${prompt}` },
-      ],
-    })
-
-    const newSummary = completion.choices[0].message.content
-
-    const { error: updateError } = await supabase
-      .from('meetings')
-      .update({ summary: newSummary })
-      .eq('id', meeting_id)
-
-    if (updateError) throw updateError
-
-    return res.status(200).json({ success: true })
-  } catch (err) {
-    console.error(err)
-    return res.status(500).json({ success: false, error: 'AI or database error' })
-  }
+  return res.status(200).json({ success: true, updatedSummary: newSummary })
 }
